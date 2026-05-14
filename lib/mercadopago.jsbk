@@ -1,0 +1,51 @@
+const { MercadoPagoConfig, Preference, Payment } = require('mercadopago');
+
+function getClient() {
+  return new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
+}
+
+/**
+ * Create a payment preference for a premium ad.
+ * @param {object} opts
+ * @param {string} opts.title - Ad title
+ * @param {number} opts.amount - Price in MXN (e.g. 56.23)
+ * @param {string} opts.externalReference - Unique reference (ad public_id)
+ * @param {string} opts.notificationUrl - Webhook URL
+ * @param {string} opts.backUrl - Base URL for redirects
+ */
+async function createPreference({ title, amount, externalReference, notificationUrl, backUrl }) {
+  const client = getClient();
+  const preference = new Preference(client);
+
+  const result = await preference.create({
+    body: {
+      items: [
+        {
+          title: `Anuncio Premium — ${title}`,
+          quantity: 1,
+          unit_price: Number(amount),
+          currency_id: 'MXN',
+        },
+      ],
+      external_reference: externalReference,
+      notification_url: notificationUrl,
+      back_urls: {
+        success: `${backUrl}?payment_status=approved&ref=${externalReference}`,
+        failure: `${backUrl}?payment_status=rejected&ref=${externalReference}`,
+        pending: `${backUrl}?payment_status=pending&ref=${externalReference}`,
+      },
+      auto_return: 'approved',
+    },
+  });
+
+  return result;
+}
+
+/** Get payment details by ID */
+async function getPayment(paymentId) {
+  const client = getClient();
+  const payment = new Payment(client);
+  return payment.get({ id: paymentId });
+}
+
+module.exports = { createPreference, getPayment };
