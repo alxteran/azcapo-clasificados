@@ -34,6 +34,45 @@ function renderHomePage() {
     </section>
 
     <div class="container">
+      <!-- Welcome Banner / Cortinilla -->
+      <div class="welcome-banner" id="welcome-banner">
+        <div class="welcome-banner-inner">
+          <button class="welcome-banner-close" onclick="closeWelcomeBanner()" title="Cerrar">✕</button>
+          <div class="welcome-banner-header">
+            <span class="welcome-banner-icon">🤝</span>
+            <div class="welcome-banner-title">Impulsemos juntos el comercio local</div>
+          </div>
+          <div class="welcome-banner-body">
+            <p class="welcome-banner-text">
+              Este portal ha sido creado con un propósito claro: <strong>dar un mayor impulso al comercio local.</strong>
+            </p>
+            <p class="welcome-banner-text">
+              A través de AzcapoClasificados, cualquier persona tendrá una herramienta sencilla y efectiva para impulsar y promover sus productos y servicios, llegando a más personas de su propia comunidad.
+            </p>
+            <p class="welcome-banner-text">
+              Este proyecto nace de una idea libre y espontánea: <strong>ayudar de forma desinteresada</strong> a que el comercio de nuestra zona crezca y se fortalezca. No hay intereses ocultos, solo la convicción de que el trabajo local merece visibilidad.
+            </p>
+            <p class="welcome-banner-text">
+              Pero para que este espacio pueda mantenerse activo, mejorar sus funciones y seguir siendo gratuito para la mayoría, <strong>necesitamos tu apoyo.</strong>
+            </p>
+            <p class="welcome-banner-text">
+              Si puedes apoyarnos, te invitamos a publicar tus anuncios con fotos en la <strong>versión premium</strong>. Con ese pequeño gesto, nos darás la posibilidad de seguir manteniendo este proyecto… pensando siempre en tu beneficio.
+            </p>
+            <p class="welcome-banner-highlight">
+              Porque cuando el comercio local gana, todos ganamos.
+            </p>
+            <div class="welcome-banner-cta">
+              <button class="btn btn-primary" onclick="navigateTo('/publish');closeWelcomeBanner();">⭐ ¿Te animas a ser parte del cambio?</button>
+            </div>
+          </div>
+          <div class="welcome-banner-progress">
+            <div class="welcome-banner-progress-bar" id="welcome-banner-progress" style="width:100%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
       <div class="home-with-sidebar">
         <!-- Vertical Category Menu -->
         <nav class="category-sidebar" id="category-sidebar">

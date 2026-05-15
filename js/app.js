@@ -10,6 +10,8 @@ let uploadedImages = [];
 let currentChatRole = 'buyer';
 let authMode = 'register';
 let openCatSub = null;
+let welcomeBannerTimer = null;
+let welcomeBannerCountdown = null;
 
 /* ---- Category Sidebar Toggle ---- */
 function toggleCatSub(catId) {
@@ -94,6 +96,11 @@ function router() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
   bindSearchEvents();
   closeMobileMenu();
+
+  // If on home page, open the welcome banner (once per session)
+  if ((path === '/' || path === '') && !sessionStorage.getItem('welcome_banner_seen')) {
+    setTimeout(() => openWelcomeBanner(), 600);
+  }
 
   // If on auth page, generate and draw CAPTCHA
   if (path === '/auth') {
@@ -273,6 +280,51 @@ function clearFilters() {
   navigateTo('/search');
 }
 
+/* ---- Welcome Banner ---- */
+function openWelcomeBanner() {
+  const banner = document.getElementById('welcome-banner');
+  if (!banner) return;
+
+  // Slide open
+  requestAnimationFrame(() => banner.classList.add('open'));
+
+  // Start 20-second countdown with progress bar
+  const duration = 20000;
+  const startTime = Date.now();
+  const progressBar = document.getElementById('welcome-banner-progress');
+
+  welcomeBannerCountdown = setInterval(() => {
+    const elapsed = Date.now() - startTime;
+    const remaining = Math.max(0, 1 - elapsed / duration);
+    if (progressBar) progressBar.style.width = (remaining * 100) + '%';
+    if (elapsed >= duration) {
+      clearInterval(welcomeBannerCountdown);
+    }
+  }, 200);
+
+  // Auto-close after 20 seconds
+  welcomeBannerTimer = setTimeout(() => closeWelcomeBanner(), duration);
+}
+
+function closeWelcomeBanner() {
+  const banner = document.getElementById('welcome-banner');
+  if (!banner) return;
+
+  // Clear timers
+  if (welcomeBannerTimer) { clearTimeout(welcomeBannerTimer); welcomeBannerTimer = null; }
+  if (welcomeBannerCountdown) { clearInterval(welcomeBannerCountdown); welcomeBannerCountdown = null; }
+
+  // Animate close
+  banner.classList.add('closing');
+  banner.classList.remove('open');
+
+  // Mark as seen for this session
+  sessionStorage.setItem('welcome_banner_seen', '1');
+
+  // Remove from DOM after animation
+  setTimeout(() => banner.remove(), 800);
+}
+
 /* ---- Publish Handlers ---- */
 function switchPublishType(type) {
   publishType = type;
@@ -394,35 +446,21 @@ async function handlePublish(event) {
   }
 }
 
-/** Premium publish flow via MercadoPago API */
+/** Premium publish flow — redirige al link fijo de MercadoPago */
 async function handlePremiumPublish(ad) {
   try {
     // 1. Create ad in DB as pending_payment
     const newAd = await Store.add(ad);
 
-    // 2. Create MercadoPago preference via our API
-    const prefData = await apiRequest('/api/payments/create-preference', {
-      method: 'POST',
-      body: JSON.stringify({
-        adPublicId: newAd.id,
-        title: ad.title,
-      }),
-    });
-
-    if (!prefData.success) {
-      showToast(prefData.message || 'Error al crear preferencia de pago.', 'error');
-      return;
-    }
-
-    // 3. Redirect to MercadoPago checkout
+    // 2. Redirect directly to fixed MercadoPago payment link
     uploadedImages = [];
     publishType = 'free';
 
     showToast('Redirigiendo a MercadoPago para completar el pago...', 'info');
 
-    // Use init_point for production
-    const paymentUrl = prefData.initPoint || prefData.sandboxInitPoint;
-    window.location.href = paymentUrl;
+    setTimeout(() => {
+      window.open('https://mpago.la/1YvFDqr', '_blank');
+    }, 800);
   } catch (error) {
     console.error('Premium publish error:', error);
     showToast('Error al procesar pago premium.', 'error');

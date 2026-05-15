@@ -1594,3 +1594,172 @@
   font-size: var(--text-xs);
   color: var(--text-muted);
 }
+
+/* ---- Welcome Banner / Cortinilla ---- */
+.welcome-banner {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.8s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.5s ease,
+              margin 0.5s ease;
+  opacity: 0;
+  margin: 0;
+}
+
+.welcome-banner.open {
+  max-height: 900px;
+  opacity: 1;
+  margin-bottom: var(--space-6);
+}
+
+.welcome-banner.closing {
+  max-height: 0 !important;
+  opacity: 0 !important;
+  margin: 0 !important;
+}
+
+.welcome-banner-inner {
+  position: relative;
+  background: linear-gradient(135deg, rgba(229, 57, 53, 0.06) 0%, rgba(255, 112, 67, 0.04) 50%, rgba(229, 57, 53, 0.06) 100%);
+  border: 1px solid rgba(229, 57, 53, 0.2);
+  border-radius: var(--radius-2xl);
+  padding: var(--space-8) var(--space-8) var(--space-6);
+  backdrop-filter: blur(16px);
+  overflow: hidden;
+}
+
+.welcome-banner-inner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--accent-gradient);
+  border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+}
+
+.welcome-banner-close {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--bg-surface);
+  border: 1px solid var(--glass-border);
+  color: var(--text-muted);
+  font-size: var(--text-base);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  z-index: 2;
+}
+
+.welcome-banner-close:hover {
+  background: rgba(229, 57, 53, 0.1);
+  border-color: rgba(229, 57, 53, 0.3);
+  color: var(--accent-start);
+  transform: rotate(90deg);
+}
+
+.welcome-banner-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.welcome-banner-icon {
+  font-size: 2rem;
+  line-height: 1;
+  animation: welcomePulse 2s ease-in-out infinite;
+}
+
+@keyframes welcomePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.welcome-banner-title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.welcome-banner-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-right: var(--space-8);
+}
+
+.welcome-banner-text {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+}
+
+.welcome-banner-text strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.welcome-banner-highlight {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: var(--text-base);
+  font-style: italic;
+  padding-left: var(--space-4);
+  border-left: 3px solid var(--accent-start);
+}
+
+.welcome-banner-cta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.welcome-banner-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(229, 57, 53, 0.1);
+  overflow: hidden;
+  border-radius: 0 0 var(--radius-2xl) var(--radius-2xl);
+}
+
+.welcome-banner-progress-bar {
+  height: 100%;
+  background: var(--accent-gradient);
+  border-radius: 0 0 var(--radius-2xl) var(--radius-2xl);
+  transition: width 0.3s linear;
+}
+
+@media (max-width: 768px) {
+  .welcome-banner-inner {
+    padding: var(--space-6) var(--space-5) var(--space-4);
+  }
+  .welcome-banner-body {
+    padding-right: var(--space-4);
+  }
+  .welcome-banner-title {
+    font-size: var(--text-lg);
+  }
+  .welcome-banner-text {
+    font-size: var(--text-xs);
+  }
+  .welcome-banner-highlight {
+    font-size: var(--text-sm);
+  }
+}
