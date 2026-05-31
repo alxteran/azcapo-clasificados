@@ -65,8 +65,12 @@ function router() {
     const adId = path.split('/ad/')[1];
     html = renderAdDetailPage(adId);
     updateActiveNav('');
+    // Load chat from API after page renders
+    if (AuthStore.isLoggedIn()) {
+      setTimeout(() => loadChatForAd(adId), 0);
+    }
   } else if (path === '/publish') {
-    html = renderPublishPage(publishType);
+    html = renderPublishPage();
     updateActiveNav('publish');
   } else if (path === '/my-ads') {
     html = renderMyAdsPage();
@@ -79,6 +83,10 @@ function router() {
   } else if (path === '/chats') {
     html = renderChatsPage();
     updateActiveNav('chats');
+    // Load conversations from API
+    if (AuthStore.isLoggedIn()) {
+      setTimeout(() => loadChatsPage(), 0);
+    }
   } else if (path.startsWith('/search')) {
     const params = new URLSearchParams(path.split('?')[1] || '');
     currentQuery = params.get('q') || '';
@@ -97,9 +105,12 @@ function router() {
   bindSearchEvents();
   closeMobileMenu();
 
-  // If on home page, open the welcome banner (once per session)
-  if ((path === '/' || path === '') && !sessionStorage.getItem('welcome_banner_seen')) {
-    setTimeout(() => openWelcomeBanner(), 600);
+  // The welcome banner has been disabled.
+
+  // Initialise hero image carousel on home page
+  if (path === '/' || path === '') {
+    heroCarousel.stop();
+    setTimeout(() => heroCarousel.init(), 0);
   }
 
   // If on auth page, generate and draw CAPTCHA
@@ -326,18 +337,9 @@ function closeWelcomeBanner() {
 }
 
 /* ---- Publish Handlers ---- */
-function switchPublishType(type) {
-  publishType = type;
-  uploadedImages = [];
-  const container = document.getElementById('publish-form-container');
-  if (container) {
-    container.innerHTML = renderPublishForm(type);
-  }
-}
-
 function handleImageUpload(event) {
   const files = Array.from(event.target.files);
-  const maxImages = 5;
+  const maxImages = 3;
 
   files.slice(0, maxImages - uploadedImages.length).forEach(file => {
     // Compress image before storing
@@ -415,8 +417,8 @@ async function handlePublish(event) {
       category: data.get('category'),
       price: Number(data.get('price')),
       location: data.get('location'),
-      type: data.get('type'),
-      images: data.get('type') === 'premium' ? [...uploadedImages] : [],
+      type: 'free',
+      images: [...uploadedImages],
       contact: {
         name: AuthStore.getCurrentEmail(),
         phone: 'No especificado',
@@ -424,47 +426,70 @@ async function handlePublish(event) {
       }
     };
 
-    // Premium ads → create ad as pending, then redirect to MercadoPago
-    if (ad.type === 'premium') {
-      await handlePremiumPublish(ad);
-      return;
-    }
-
-    // Free ads → publish directly via API
     const newAd = await Store.add(ad);
     uploadedImages = [];
-    publishType = 'free';
 
-    showToast(`¡Anuncio publicado! Vigencia: ${FREE_DAYS} días. Renovaciones: hasta ${FREE_MAX_RENEWALS}.`, 'success');
-    navigateTo('/ad/' + newAd.id);
+    // Show confirmation page with community message
+    showPublishConfirmation(newAd);
   } catch (error) {
     console.error('Publish error:', error);
     showToast(error.message || 'Error al publicar anuncio.', 'error');
-  } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = originalText;
   }
 }
 
-/** Premium publish flow — redirige al link fijo de MercadoPago */
-async function handlePremiumPublish(ad) {
-  try {
-    // 1. Create ad in DB as pending_payment
-    const newAd = await Store.add(ad);
+/** Show confirmation page after successful publish */
+function showPublishConfirmation(ad) {
+  const adId = ad.public_id || ad.id;
+  const appContent = document.getElementById('app-content');
+  
+  // Reset currentRoute so navigateTo can work from this state
+  currentRoute = '__confirmation__';
+  
+  appContent.innerHTML = `
+    <div class="publish-page">
+      <div class="publish-confirmation">
+        <div class="confirmation-icon">🎉</div>
+        <h2 class="confirmation-title">¡Tu anuncio ha sido publicado!</h2>
+        <p class="confirmation-subtitle">Tu anuncio estará visible durante 15 días.</p>
 
-    // 2. Redirect directly to fixed MercadoPago payment link
-    uploadedImages = [];
-    publishType = 'free';
+        <div class="confirmation-ad-link">
+          <button class="btn btn-primary" onclick="navigateTo('/ad/${adId}')">
+            👁️ Ver mi anuncio
+          </button>
+        </div>
 
-    showToast('Redirigiendo a MercadoPago para completar el pago...', 'info');
+        <div class="confirmation-community">
+          <div class="confirmation-community-inner">
+            <p>Este portal ha sido creado con un propósito claro: <strong>dar un mayor impulso al comercio local.</strong></p>
+            <p>A través de AzcapoClasificados, cualquier persona tendrá una herramienta sencilla y efectiva para impulsar y promover sus productos y servicios, llegando a más personas de su propia comunidad.</p>
+            <p>Este proyecto nace de una idea libre y espontánea: <strong>ayudar de forma desinteresada</strong> a que el comercio de nuestra zona crezca y se fortalezca. No hay intereses ocultos, solo la convicción de que el trabajo local merece visibilidad.</p>
+            <p>Pero para que este espacio pueda mantenerse activo, mejorar sus funciones y seguir siendo gratuito para la mayoría, <strong>necesitamos tu apoyo.</strong></p>
+            <p>Si puedes apoyarnos, te invitamos a dispararnos un café. Con ese pequeño gesto, nos darás la posibilidad de seguir manteniendo este proyecto… pensando siempre en tu beneficio.</p>
+            <p class="confirmation-highlight">Porque cuando el comercio local gana, todos ganamos.</p>
+          </div>
 
-    setTimeout(() => {
-      window.open('https://mpago.la/1YvFDqr', '_blank');
-    }, 800);
-  } catch (error) {
-    console.error('Premium publish error:', error);
-    showToast('Error al procesar pago premium.', 'error');
-  }
+          <div class="confirmation-cafe-cta">
+            <button class="btn btn-cafe" onclick="window.open('https://mpago.la/1YvFDqr', '_blank')">
+              ☕ Gracias por el café — $56.23 MXN
+            </button>
+            <span class="confirmation-cafe-hint">Tu apoyo nos ayuda a mantener este proyecto vivo</span>
+          </div>
+        </div>
+
+        <div class="confirmation-actions">
+          <button class="btn btn-secondary" onclick="navigateTo('/')">
+            🏠 Ir al inicio
+          </button>
+          <button class="btn btn-ghost" onclick="navigateTo('/publish')">
+            📝 Publicar otro anuncio
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 /* ---- Payment Return Handler ---- */
@@ -539,6 +564,7 @@ async function handleAuth(event, mode) {
       showToast(result.message, 'success');
       // Re-render header to show logged-in state
       updateHeaderState();
+      ChatStore.reloadForUser(); // Switch chat store to this user's private key
       navigateTo('/publish');
     } else {
       // Show error inline
@@ -561,6 +587,7 @@ async function handleAuth(event, mode) {
 
 function handleLogout() {
   AuthStore.logout();
+  ChatStore.reloadForUser(); // Switch chat store to anonymous/guest key
   updateHeaderState();
   showToast('Sesión cerrada correctamente.', 'info');
   navigateTo('/');
@@ -590,7 +617,135 @@ async function handleRenewAd(adId) {
   }
 }
 
-/* ---- Gallery ---- */
+/* ---- Edit Ad Handlers ---- */
+let editUploadedImages = [];
+
+/** Open the edit modal pre-filled with the ad's current data */
+function handleEditAd(adId) {
+  const ad = Store.getById(adId);
+  if (!ad) { showToast('Anuncio no encontrado.', 'error'); return; }
+
+  if (!AuthStore.isLoggedIn()) {
+    showToast('Debes iniciar sesión para editar.', 'error');
+    navigateTo('/auth');
+    return;
+  }
+
+  if (!Store.isMyAd(adId)) {
+    showToast('Solo el autor puede modificar este anuncio.', 'error');
+    return;
+  }
+
+  editUploadedImages = ad.images ? [...ad.images] : [];
+
+  const categoriesOptions = CATEGORIES.map(c =>
+    `<optgroup label="${c.emoji} ${escapeHtml(c.name)}">
+       ${c.subs.map(s =>
+         `<option value="${s.id}" ${ad.category === s.id ? 'selected' : ''}>${escapeHtml(s.name)}</option>`
+       ).join('')}
+    </optgroup>`
+  ).join('');
+
+  const previewsHtml = editUploadedImages.map((img, i) =>
+    `<div class="image-preview-item" id="edit-preview-${i}">
+       <img src="${img}" alt="Foto ${i + 1}">
+       <div class="image-preview-remove" onclick="removeEditImage(${i})">✕</div>
+     </div>`
+  ).join('');
+
+  openModal('✏️ Modificar Anuncio',
+    `<form id="edit-ad-form" onsubmit="handleSaveEdit(event, '${ad.id}')">
+      <div class="form-group">
+        <label class="form-label">Título del anuncio *</label>
+        <input class="form-input" type="text" name="title" required maxlength="120" value="${escapeHtml(ad.title)}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Categoría *</label>
+        <select class="form-select form-input" name="category" required>${categoriesOptions}</select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Precio (MXN) *</label>
+        <input class="form-input" type="number" name="price" required min="0" value="${ad.price}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Descripción *</label>
+        <textarea class="form-textarea" name="description" required maxlength="2000">${escapeHtml(ad.description)}</textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Ubicación *</label>
+        <input class="form-input" type="text" name="location" required value="${escapeHtml(ad.location)}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Fotos (hasta 3)</label>
+        <div class="image-preview-grid" id="edit-image-preview-grid">${previewsHtml}</div>
+        <div class="image-upload-area" style="margin-top:var(--space-3)" onclick="document.getElementById('edit-image-input').click()">
+          <div class="image-upload-icon">📸</div>
+          <div class="image-upload-text">Agregar / cambiar fotos</div>
+        </div>
+        <input type="file" id="edit-image-input" accept="image/*" multiple style="display:none" onchange="handleEditImageUpload(event)">
+      </div>
+    </form>`,
+    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+     <button class="btn btn-primary" onclick="document.getElementById('edit-ad-form').requestSubmit()">💾 Guardar cambios</button>`
+  );
+}
+
+function handleEditImageUpload(event) {
+  const files = Array.from(event.target.files);
+  files.slice(0, 3 - editUploadedImages.length).forEach(file =>
+    compressImage(file, 800, 0.7).then(dataUrl => {
+      editUploadedImages.push(dataUrl);
+      renderEditImagePreviews();
+    })
+  );
+}
+
+function renderEditImagePreviews() {
+  const grid = document.getElementById('edit-image-preview-grid');
+  if (!grid) return;
+  grid.innerHTML = editUploadedImages.map((img, i) =>
+    `<div class="image-preview-item">
+       <img src="${img}" alt="Foto ${i + 1}">
+       <div class="image-preview-remove" onclick="removeEditImage(${i})">✕</div>
+     </div>`
+  ).join('');
+}
+
+function removeEditImage(index) {
+  editUploadedImages.splice(index, 1);
+  renderEditImagePreviews();
+}
+
+async function handleSaveEdit(event, adId) {
+  event.preventDefault();
+  const form = event.target;
+  const submitBtn = document.querySelector('.modal-footer .btn-primary');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '⏳ Guardando...'; }
+
+  try {
+    const data = new FormData(form);
+    const fields = {
+      title: data.get('title'),
+      description: data.get('description'),
+      category: data.get('category'),
+      price: Number(data.get('price')),
+      location: data.get('location'),
+      images: [...editUploadedImages],
+    };
+
+    const result = await Store.updateAd(adId, fields);
+    showToast(result.message || 'Anuncio actualizado.', 'success');
+    closeModal();
+    // Re-render the ad detail page with fresh data
+    currentRoute = '';
+    navigateTo('/ad/' + adId);
+  } catch (error) {
+    showToast(error.message || 'Error al guardar cambios.', 'error');
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '💾 Guardar cambios'; }
+  }
+}
+
+
 function switchGalleryImage(src, thumbEl) {
   const mainImg = document.getElementById('gallery-main-img');
   if (mainImg) mainImg.src = src;
@@ -598,35 +753,250 @@ function switchGalleryImage(src, thumbEl) {
   if (thumbEl) thumbEl.classList.add('active');
 }
 
-/* ---- Chat Handlers ---- */
-function sendChatMessage(adId) {
+/* ---- Chat Handlers (API-backed) ---- */
+
+// Track which seller conversation is active per adId
+let _activeSellerConvId = {};
+
+/**
+ * Load chat for an ad from the API and inject into the page.
+ * For buyers: shows their private conversation.
+ * For sellers: shows a list of buyer conversations to select from.
+ */
+async function loadChatForAd(adId) {
+  const container = document.getElementById('chat-container-' + adId);
+  if (!container) return;
+
+  try {
+    const data = await ChatStore.loadForAd(adId);
+    if (!data) {
+      container.innerHTML = `<div class="chat-error-state">No se pudo cargar el chat. Intenta de nuevo.</div>`;
+      return;
+    }
+
+    const session = AuthStore.getSession();
+    const userId = session ? session.userId : null;
+
+    if (data.role === 'buyer') {
+      container.innerHTML = renderChatPanelBuyer(adId, data.messages, data.conversationId, userId);
+      const msgs = container.querySelector('.chat-messages');
+      if (msgs) msgs.scrollTop = msgs.scrollHeight;
+    } else if (data.role === 'seller') {
+      container.innerHTML = renderChatPanelSeller(adId, data.conversations, userId);
+    }
+  } catch (e) {
+    console.error('loadChatForAd error:', e);
+    container.innerHTML = `<div class="chat-error-state">Error al cargar el chat.</div>`;
+  }
+}
+
+/** Render the buyer's chat panel (single conversation with seller) */
+function renderChatPanelBuyer(adId, messages, conversationId, userId) {
+  return `
+    <div class="chat-privacy-notice">
+      🔒 Esta conversación es privada y solo tú y el vendedor pueden verla.
+    </div>
+    <div class="chat-panel" id="chat-panel-${adId}">
+      <div class="chat-messages" id="chat-messages-${adId}">
+        ${renderChatMessagesFromData(messages, userId)}
+      </div>
+      <div class="chat-input-bar">
+        <input class="chat-input" type="text" id="chat-input-${adId}"
+          placeholder="Escribe un mensaje al vendedor..."
+          onkeydown="if(event.key==='Enter'){sendChatMessage('${adId}', null);event.preventDefault()}"
+          autocomplete="off">
+        <button class="chat-send-btn" onclick="sendChatMessage('${adId}', null)" title="Enviar">➤</button>
+      </div>
+    </div>
+  `;
+}
+
+/** Render the seller's chat panel (list of buyer conversations) */
+function renderChatPanelSeller(adId, conversations, userId) {
+  if (!conversations || conversations.length === 0) {
+    return `
+      <div class="chat-seller-info">
+        📢 Aún no has recibido mensajes en este anuncio.
+      </div>
+    `;
+  }
+
+  const convListHtml = conversations.map(conv => {
+    const unreadBadge = conv.unreadCount > 0 ? `<span class="chat-unread-badge">${conv.unreadCount}</span>` : '';
+    const lastMsg = conv.messages[conv.messages.length - 1];
+    const preview = lastMsg ? escapeHtml(lastMsg.text.substring(0, 50)) + (lastMsg.text.length > 50 ? '...' : '') : 'Sin mensajes';
+    return `
+      <div class="chat-conv-item" id="conv-item-${conv.conversationId}"
+        onclick="selectSellerConversation('${adId}', ${conv.conversationId})">
+        <div class="chat-conv-avatar">👤</div>
+        <div class="chat-conv-info">
+          <div class="chat-conv-email">${escapeHtml(conv.buyerEmail)}</div>
+          <div class="chat-conv-preview">${preview}</div>
+        </div>
+        <div class="chat-conv-meta">
+          ${lastMsg ? `<span class="chat-conv-time">${timeAgo(new Date(lastMsg.createdAt).getTime())}</span>` : ''}
+          ${unreadBadge}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Auto-select first conversation
+  const firstConv = conversations[0];
+  _activeSellerConvId[adId] = firstConv.conversationId;
+
+  return `
+    <div class="chat-seller-wrapper">
+      <div class="chat-seller-list" id="seller-conv-list-${adId}">${convListHtml}</div>
+      <div class="chat-seller-conversation" id="seller-chat-area-${adId}">
+        ${renderSellerChatArea(adId, firstConv, userId)}
+      </div>
+    </div>
+  `;
+}
+
+/** Render the selected conversation area for the seller */
+function renderSellerChatArea(adId, conv, userId) {
+  return `
+    <div class="chat-seller-conv-header">
+      <span>👤 ${escapeHtml(conv.buyerEmail)}</span>
+    </div>
+    <div class="chat-messages" id="chat-messages-${adId}">
+      ${renderChatMessagesFromData(conv.messages, userId)}
+    </div>
+    <div class="chat-input-bar">
+      <input class="chat-input" type="text" id="chat-input-${adId}"
+        placeholder="Responde al comprador..."
+        onkeydown="if(event.key==='Enter'){sendChatMessage('${adId}', ${conv.conversationId});event.preventDefault()}"
+        autocomplete="off">
+      <button class="chat-send-btn" onclick="sendChatMessage('${adId}', ${conv.conversationId})" title="Enviar">➤</button>
+    </div>
+  `;
+}
+
+/** Seller selects a different buyer conversation */
+async function selectSellerConversation(adId, conversationId) {
+  _activeSellerConvId[adId] = conversationId;
+
+  // Highlight selected
+  document.querySelectorAll(`#seller-conv-list-${adId} .chat-conv-item`).forEach(el => {
+    el.classList.remove('active');
+  });
+  const selectedEl = document.getElementById('conv-item-' + conversationId);
+  if (selectedEl) selectedEl.classList.add('active');
+
+  // Find conversation data from cache
+  const cached = ChatStore.getCached(adId);
+  if (!cached || !cached.conversations) return;
+  const conv = cached.conversations.find(c => c.conversationId === conversationId);
+  if (!conv) return;
+
+  const session = AuthStore.getSession();
+  const userId = session ? session.userId : null;
+
+  const chatArea = document.getElementById('seller-chat-area-' + adId);
+  if (chatArea) {
+    chatArea.innerHTML = renderSellerChatArea(adId, conv, userId);
+    const msgs = chatArea.querySelector('.chat-messages');
+    if (msgs) msgs.scrollTop = msgs.scrollHeight;
+  }
+}
+
+/** Send a chat message (works for both buyer and seller) */
+async function sendChatMessage(adId, conversationId) {
+  if (!AuthStore.isLoggedIn()) {
+    showToast('Debes iniciar sesión para enviar mensajes.', 'error');
+    navigateTo('/auth');
+    return;
+  }
+
   const input = document.getElementById('chat-input-' + adId);
   if (!input) return;
   const text = input.value.trim();
   if (!text) return;
 
-  ChatStore.sendMessage(adId, text, currentChatRole);
-  input.value = '';
+  input.disabled = true;
 
-  // Refresh messages
-  const messagesEl = document.getElementById('chat-messages-' + adId);
-  if (messagesEl) {
-    messagesEl.innerHTML = renderChatMessages(adId);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+  try {
+    const convId = conversationId || _activeSellerConvId[adId] || null;
+    const result = await ChatStore.sendMessage(adId, text, convId);
+
+    if (result.success) {
+      input.value = '';
+      // Reload chat to get fresh data from API
+      await loadChatForAd(adId);
+      const msgs = document.getElementById('chat-messages-' + adId);
+      if (msgs) msgs.scrollTop = msgs.scrollHeight;
+    } else {
+      showToast(result.message || 'Error al enviar mensaje.', 'error');
+    }
+  } catch (e) {
+    showToast('Error al enviar mensaje. Intenta de nuevo.', 'error');
+  } finally {
+    input.disabled = false;
+    input.focus();
   }
 }
 
-function switchChatRole(adId, role) {
-  currentChatRole = role;
-  document.getElementById('role-buyer').classList.toggle('active', role === 'buyer');
-  document.getElementById('role-seller').classList.toggle('active', role === 'seller');
+/** Load and render the /chats page conversations from API */
+async function loadChatsPage() {
+  const container = document.getElementById('chats-list-content');
+  if (!container) return;
 
-  // Update input placeholder
-  const input = document.getElementById('chat-input-' + adId);
-  if (input) {
-    input.placeholder = role === 'buyer' ? 'Escribe al vendedor...' : 'Responde al comprador...';
-    input.focus();
+  try {
+    // Fetch conversations for all ads where the user is buyer or seller
+    // We call a dedicated conversations listing API
+    const data = await apiRequest('/api/chat/conversations');
+    if (!data.success) {
+      container.innerHTML = `<div class="chat-error-state">No se pudieron cargar las conversaciones.</div>`;
+      return;
+    }
+
+    const conversations = data.conversations || [];
+    if (conversations.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">💬</div>
+          <div class="empty-state-title">No tienes conversaciones</div>
+          <p class="empty-state-text">Cuando envíes o recibas un mensaje en un anuncio, aparecerá aquí.</p>
+          <button class="btn btn-primary" onclick="navigateTo('/')">Explorar anuncios</button>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:var(--space-3)">
+        ${conversations.map(conv => {
+          const lastMsg = conv.lastMessage;
+          return `
+            <div class="chat-list-item" onclick="navigateTo('/ad/${conv.adPublicId}')">
+              <div class="chat-list-icon">💬</div>
+              <div class="chat-list-info">
+                <div class="chat-list-title">${escapeHtml(conv.adTitle || conv.adPublicId)}</div>
+                <div class="chat-list-preview">
+                  ${conv.role === 'seller' ? '🛒 ' + escapeHtml(conv.buyerEmail) + ': ' : ''}
+                  ${lastMsg ? escapeHtml(lastMsg.text.substring(0, 60)) : 'Sin mensajes'}
+                </div>
+              </div>
+              <div class="chat-list-meta">
+                ${lastMsg ? `<span class="chat-list-time">${timeAgo(new Date(lastMsg.createdAt).getTime())}</span>` : ''}
+                ${conv.unreadCount > 0 ? `<span class="chat-unread-badge">${conv.unreadCount}</span>` : ''}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  } catch (e) {
+    console.error('loadChatsPage error:', e);
+    container.innerHTML = `<div class="chat-error-state">Error al cargar conversaciones.</div>`;
   }
+}
+
+// Keep stub for compatibility (no longer used with API chat)
+function switchChatRole(adId, role) {
+  // Role switching is no longer needed — roles are determined by auth
 }
 
 /* ---- Hash Link Delegation ---- */
@@ -664,3 +1034,162 @@ async function initApp() {
 }
 
 document.addEventListener('DOMContentLoaded', initApp);
+
+/* ============================================================
+   HERO BANNER CAROUSEL
+   Reads all .jpg/.png images from the remote imagenes folder
+   and displays them as a full-width auto-advancing carousel
+   (4 seconds per slide, minimalist arrows + dot indicators).
+   ============================================================ */
+
+const heroCarousel = (() => {
+  // Images are served from the /imagenes/ folder of this project
+  const BASE_URL    = '/imagenes/';
+  // manifest.json is auto-generated at build time by scripts/generate-manifest.js
+  const MANIFEST    = '/imagenes/manifest.json';
+  const INTERVAL_MS = 4000;
+
+  let images      = [];
+  let idx         = 0;
+  let timer       = null;
+  let rafId       = null;
+  let progressTs  = 0;
+
+  /* ---- DOM helpers ---- */
+  const el  = id => document.getElementById(id);
+  const all = sel => document.querySelectorAll(sel);
+
+  /* ---- Parse directory listing ---- */
+  function parseLinks(html) {
+    const doc   = new DOMParser().parseFromString(html, 'text/html');
+    const links = Array.from(doc.querySelectorAll('a[href]'));
+    return links
+      .map(a => a.getAttribute('href'))
+      .filter(h => /\.(jpe?g|png)$/i.test(h))
+      .map(h => h.split('/').pop());
+  }
+
+  /* ---- Go to slide ---- */
+  function goTo(i) {
+    if (!images.length) return;
+    idx = ((i % images.length) + images.length) % images.length;
+
+    const track = el('hero-carousel-track');
+    if (track) track.style.transform = `translateX(-${idx * 100}%)`;
+
+    all('.hero-carousel-dot').forEach((d, n) =>
+      d.classList.toggle('active', n === idx));
+
+    const bar = el('hero-carousel-progress');
+    if (bar) bar.style.width = '0%';
+    progressTs = Date.now();
+  }
+
+  /* ---- Progress bar animation ---- */
+  function animateProgress() {
+    const bar = el('hero-carousel-progress');
+    if (!bar) return;
+    const pct = Math.min(100, ((Date.now() - progressTs) / INTERVAL_MS) * 100);
+    bar.style.width = pct + '%';
+    if (pct < 100) rafId = requestAnimationFrame(animateProgress);
+  }
+
+  /* ---- Start / stop timer ---- */
+  function startTimer() {
+    progressTs = Date.now();
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(animateProgress);
+    timer = setInterval(() => {
+      goTo(idx + 1);
+      progressTs = Date.now();
+    }, INTERVAL_MS);
+  }
+
+  function stopTimer() {
+    if (timer)  { clearInterval(timer);           timer = null; }
+    if (rafId)  { cancelAnimationFrame(rafId);    rafId = null; }
+  }
+
+  /* ---- Build DOM ---- */
+  function build(imgs) {
+    images = imgs;
+    idx    = 0;
+
+    const track   = el('hero-carousel-track');
+    const dots    = el('hero-carousel-dots');
+    const loading = el('hero-carousel-loading');
+    const prev    = el('hero-carousel-prev');
+    const next    = el('hero-carousel-next');
+    if (!track || !dots) return;
+
+    // Hide loading spinner
+    if (loading) loading.style.display = 'none';
+
+    // Slides
+    track.innerHTML = imgs.map((src, i) => `
+      <div class="hero-carousel-slide" data-idx="${i}">
+        <img src="${BASE_URL}${encodeURIComponent(src)}"
+             alt="Banner promocional ${i + 1}"
+             loading="${i === 0 ? 'eager' : 'lazy'}"
+             onerror="this.closest('.hero-carousel-slide').style.display='none'">
+      </div>
+    `).join('');
+
+    // Dots
+    dots.innerHTML = imgs.map((_, i) => `
+      <button class="hero-carousel-dot ${i === 0 ? 'active' : ''}"
+              aria-label="Ir al slide ${i + 1}"
+              onclick="heroDot(${i})"></button>
+    `).join('');
+
+    // Show arrows only when more than 1 image
+    if (prev) prev.style.display = imgs.length > 1 ? 'flex' : 'none';
+    if (next) next.style.display = imgs.length > 1 ? 'flex' : 'none';
+
+    // Start autoplay
+    if (imgs.length > 1) startTimer();
+  }
+
+  /* ---- Public API ---- */
+  async function init() {
+    const loading = el('hero-carousel-loading');
+    const track   = el('hero-carousel-track');
+    if (!track) return;
+
+    // Reset state
+    images = []; idx = 0;
+    if (loading) loading.style.display = 'flex';
+    track.innerHTML = '';
+
+    try {
+      // Read manifest.json — a simple JSON array of filenames, e.g. ["banner1.jpg","banner2.png"]
+      const res = await fetch(MANIFEST, { cache: 'no-cache' });
+      if (!res.ok) {
+        console.warn('HeroCarousel: /api/imagenes not reachable or returned no images.');
+        if (loading) loading.style.display = 'none';
+        return;
+      }
+      const imgs = await res.json(); // expects string[]
+      if (!Array.isArray(imgs) || !imgs.length) {
+        if (loading) loading.style.display = 'none';
+        return;
+      }
+      build(imgs);
+    } catch (e) {
+      console.warn('HeroCarousel: error loading manifest.json —', e);
+      if (loading) loading.style.display = 'none';
+    }
+  }
+
+  function stop() { stopTimer(); }
+  function prev() { stopTimer(); goTo(idx - 1); startTimer(); }
+  function next() { stopTimer(); goTo(idx + 1); startTimer(); }
+  function dot(i) { stopTimer(); goTo(i);       startTimer(); }
+
+  return { init, stop, prev, next, dot };
+})();
+
+/* Global handlers for inline onclick attributes */
+function heroPrev() { heroCarousel.prev(); }
+function heroNext() { heroCarousel.next(); }
+function heroDot(i) { heroCarousel.dot(i); }

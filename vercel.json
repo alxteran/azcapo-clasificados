@@ -1,4 +1,6 @@
 {
+  "installCommand": "npm install",
+  "buildCommand": "node scripts/generate-manifest.js",
   "crons": [
     {
       "path": "/api/cron/expire-ads",

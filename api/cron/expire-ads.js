@@ -10,18 +10,46 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const result = await sql`
-      UPDATE ads SET status = 'suspended'
+    // 1. Get IDs of expired ads before deleting (to clean up chat data)
+    const expiredAds = await sql`
+      SELECT public_id, title FROM ads
       WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at < NOW()
-      RETURNING public_id, title
     `;
 
-    console.log(`Cron: Suspended ${result.length} expired ads`);
+    if (expiredAds.length > 0) {
+      const expiredIds = expiredAds.map(a => a.public_id);
+
+      // 2. Delete chat conversations for expired ads
+      //    chat_messages are cascade-deleted by the FK ON DELETE CASCADE constraint
+      for (const publicId of expiredIds) {
+        await sql`
+          DELETE FROM chat_conversations WHERE ad_public_id = ${publicId}
+        `;
+      }
+      console.log(`Cron: Deleted chat data for ${expiredIds.length} expired ads`);
+
+      // 3. Delete the expired ads themselves
+      const result = await sql`
+        DELETE FROM ads
+        WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at < NOW()
+        RETURNING public_id, title
+      `;
+
+      console.log(`Cron: Deleted ${result.length} expired ads`);
+
+      return res.status(200).json({
+        success: true,
+        deleted: result.length,
+        chatsDeleted: expiredIds.length,
+        ads: result.map(a => ({ id: a.public_id, title: a.title })),
+      });
+    }
 
     return res.status(200).json({
       success: true,
-      suspended: result.length,
-      ads: result.map(a => ({ id: a.public_id, title: a.title })),
+      deleted: 0,
+      chatsDeleted: 0,
+      ads: [],
     });
   } catch (error) {
     console.error('Cron expire error:', error);

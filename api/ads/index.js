@@ -3,7 +3,6 @@ const { authMiddleware } = require('../../lib/auth');
 const { cors } = require('../../lib/cors');
 
 const FREE_DAYS = 15;
-const PREMIUM_DAYS = 30;
 const FREE_MAX_RENEWALS = 3;
 
 module.exports = async function handler(req, res) {
@@ -16,15 +15,12 @@ module.exports = async function handler(req, res) {
 
 async function handleList(req, res) {
   try {
-    const { q, category, type, sort, minPrice, maxPrice, limit = 100, page = 1 } = req.query || {};
+    const { q, category, sort, minPrice, maxPrice, limit = 100, page = 1 } = req.query || {};
     const offset = (Number(page) - 1) * Number(limit);
 
-    let query = `SELECT * FROM ads WHERE status != 'deleted'`;
+    let query = `SELECT * FROM ads WHERE status = 'active'`;
     const params = [];
     let paramIdx = 1;
-
-    // Exclude suspended by default unless requesting own ads
-    query += ` AND status = 'active'`;
 
     if (q) {
       params.push(`%${q.toLowerCase()}%`);
@@ -34,11 +30,6 @@ async function handleList(req, res) {
     if (category) {
       params.push(category);
       query += ` AND category = $${paramIdx}`;
-      paramIdx++;
-    }
-    if (type) {
-      params.push(type);
-      query += ` AND type = $${paramIdx}`;
       paramIdx++;
     }
     if (minPrice) {
@@ -52,11 +43,11 @@ async function handleList(req, res) {
       paramIdx++;
     }
 
-    // Sort
+    // Sort — no more premium priority
     if (sort === 'price-asc') query += ` ORDER BY price ASC`;
     else if (sort === 'price-desc') query += ` ORDER BY price DESC`;
     else if (sort === 'oldest') query += ` ORDER BY created_at ASC`;
-    else query += ` ORDER BY (CASE WHEN type = 'premium' THEN 0 ELSE 1 END), created_at DESC`;
+    else query += ` ORDER BY created_at DESC`;
 
     params.push(Number(limit));
     query += ` LIMIT $${paramIdx}`;
@@ -80,14 +71,12 @@ async function handleCreate(req, res) {
       return res.status(401).json({ success: false, message: 'Debes iniciar sesión para publicar.' });
     }
 
-    const { title, description, category, price, location, type, images, contact } = req.body || {};
+    const { title, description, category, price, location, images, contact } = req.body || {};
 
     if (!title || !description || !category || !location) {
       return res.status(400).json({ success: false, message: 'Todos los campos obligatorios deben completarse.' });
     }
 
-    const isPremium = type === 'premium';
-    const vigenciaDays = isPremium ? PREMIUM_DAYS : FREE_DAYS;
     const publicId = 'ad_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
 
     const result = await sql`
@@ -95,14 +84,14 @@ async function handleCreate(req, res) {
       VALUES (
         ${publicId}, ${user.userId}, ${title}, ${description}, ${category},
         ${Number(price) || 0}, ${location},
-        ${isPremium ? 'premium' : 'free'},
-        ${isPremium ? 'pending_payment' : 'active'},
-        ${JSON.stringify(images || [])},
+        ${'free'},
+        ${'active'},
+        ${JSON.stringify((images || []).slice(0, 3))},
         ${JSON.stringify(contact || { name: user.email, email: user.email })},
-        ${isPremium},
-        ${new Date(Date.now() + vigenciaDays * 86400000).toISOString()},
+        ${false},
+        ${new Date(Date.now() + FREE_DAYS * 86400000).toISOString()},
         ${0},
-        ${isPremium ? 999999 : FREE_MAX_RENEWALS}
+        ${FREE_MAX_RENEWALS}
       )
       RETURNING *
     `;

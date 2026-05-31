@@ -29,24 +29,32 @@ function escapeHtml(str) {
 /* ---- Ad Card ---- */
 function renderAdCard(ad, index = 0) {
   const cat = getCategoryById(ad.category);
-  const isPremium = ad.type === 'premium';
   const delay = Math.min(index * 0.06, 0.5);
-  const hasImage = isPremium && ad.images && ad.images.length > 0;
+  const hasImage = ad.images && ad.images.length > 0;
+
+  // Calculate remaining days
+  let remainingBadge = '';
+  if (ad.expiresAt) {
+    const remaining = Math.max(0, Math.ceil((new Date(ad.expiresAt).getTime() - Date.now()) / DAY_MS));
+    if (remaining <= 3 && remaining > 0) {
+      remainingBadge = `<span class="badge badge-expiring">⏳ ${remaining}d</span>`;
+    } else if (remaining > 3) {
+      remainingBadge = `<span class="badge badge-time">⏱️ ${remaining}d</span>`;
+    }
+  }
 
   return `
-    <article class="ad-card ${isPremium ? 'premium' : ''}" data-id="${ad.id}" onclick="navigateTo('/ad/${ad.id}')" style="animation-delay:${delay}s">
-      ${isPremium || hasImage ? `
-        <div class="ad-card-image">
-          ${hasImage
-            ? `<img src="${ad.images[0]}" alt="${escapeHtml(ad.title)}" loading="lazy">`
-            : `<div class="ad-card-image-placeholder">${cat.emoji}</div>`
-          }
-          <div class="ad-card-badges">
-            ${isPremium ? '<span class="badge badge-premium">⭐ Premium</span>' : ''}
-            ${(Date.now() - ad.createdAt) < 86400000 * 3 ? '<span class="badge badge-new">Nuevo</span>' : ''}
-          </div>
+    <article class="ad-card" data-id="${ad.id}" onclick="navigateTo('/ad/${ad.id}')" style="animation-delay:${delay}s">
+      <div class="ad-card-image">
+        ${hasImage
+          ? `<img src="${ad.images[0]}" alt="${escapeHtml(ad.title)}" loading="lazy">`
+          : `<div class="ad-card-image-placeholder">${cat.emoji}</div>`
+        }
+        <div class="ad-card-badges">
+          ${(Date.now() - ad.createdAt) < 86400000 * 3 ? '<span class="badge badge-new">Nuevo</span>' : ''}
+          ${remainingBadge}
         </div>
-      ` : ''}
+      </div>
       <div class="ad-card-body">
         <div class="ad-card-category">
           <span>${cat.emoji}</span> ${escapeHtml(cat.name)}
@@ -61,11 +69,6 @@ function renderAdCard(ad, index = 0) {
           </div>
         </div>
       </div>
-      ${!isPremium ? `
-        <div class="ad-card-badges" style="position:absolute;top:var(--space-3);right:var(--space-3);">
-          <span class="badge badge-free">Gratis</span>
-        </div>
-      ` : ''}
     </article>
   `;
 }
@@ -207,70 +210,27 @@ function showToast(message, type = 'success') {
 }
 
 /* ---- Publish Form ---- */
-function renderPublishForm(type = 'free') {
-  const isPremium = type === 'premium';
+function renderPublishForm() {
   return `
-    <div class="publish-type-toggle">
-      <div class="toggle-group">
-        <div class="toggle-option ${!isPremium ? 'active' : ''}" onclick="switchPublishType('free')">📝 Gratuito</div>
-        <div class="toggle-option ${isPremium ? 'active' : ''}" onclick="switchPublishType('premium')">⭐ Premium</div>
+    <div class="vigencia-notice vigencia-free">
+      <div class="vigencia-notice-icon">📋</div>
+      <div class="vigencia-notice-content">
+        <div class="vigencia-notice-title">Publica tu anuncio</div>
+        <div class="vigencia-notice-text">
+          Tu anuncio tendrá una <strong>vigencia de 15 días</strong> y podrás agregar <strong>hasta 3 fotos</strong> para mejor promoción.
+          Podrás <strong>renovarlo hasta 3 veces</strong> sin costo adicional.
+        </div>
+        <div class="vigencia-notice-details">
+          <span>⏱️ 15 días de vigencia</span>
+          <span>📸 Hasta 3 fotos</span>
+          <span>🔄 3 renovaciones</span>
+          <span>💰 Sin costo</span>
+        </div>
       </div>
     </div>
 
-    ${isPremium ? `
-      <div class="premium-features">
-        <div class="premium-features-title">⭐ Anuncio Premium — $56.23 MXN / mes</div>
-        <div class="premium-features-list">
-          <div class="premium-feature-item">📸 Hasta 5 fotos para mejor promoción</div>
-          <div class="premium-feature-item">🔝 Posición prioritaria en resultados</div>
-          <div class="premium-feature-item">✨ Textos destacados para mayor impacto</div>
-          <div class="premium-feature-item">📅 30 días de vigencia</div>
-          <div class="premium-feature-item">🔄 Renovaciones ilimitadas</div>
-          <div class="premium-feature-item">👁️ Mayor visibilidad y alcance</div>
-        </div>
-        <div class="premium-price-tag">
-          <span class="premium-price-amount">$56.23</span>
-          <span class="premium-price-period">MXN / por anuncio al mes</span>
-        </div>
-      </div>
-    ` : `
-      <div class="vigencia-notice vigencia-free">
-        <div class="vigencia-notice-icon">📋</div>
-        <div class="vigencia-notice-content">
-          <div class="vigencia-notice-title">Anuncio Gratuito</div>
-          <div class="vigencia-notice-text">
-            Tu anuncio tendrá una <strong>vigencia de 15 días</strong>. Una vez concluido el tiempo, se suspenderá su visibilidad.
-            Podrás <strong>renovarlo hasta 3 veces</strong> sin costo adicional.
-          </div>
-          <div class="vigencia-notice-details">
-            <span>⏱️ 15 días de vigencia</span>
-            <span>🔄 3 renovaciones máximas</span>
-            <span>💰 Sin costo</span>
-          </div>
-        </div>
-      </div>
-    `}
-
-    ${isPremium ? `
-      <div class="vigencia-notice vigencia-premium">
-        <div class="vigencia-notice-icon">💎</div>
-        <div class="vigencia-notice-content">
-          <div class="vigencia-notice-title">Vigencia y Renovación Premium</div>
-          <div class="vigencia-notice-text">
-            Tu anuncio de pago tendrá una <strong>vigencia de 30 días</strong>. Incluye <strong>fotos y textos destacados</strong> para mejor promoción.
-            Una vez concluido el tiempo, podrás <strong>renovarlo las veces que quieras</strong>.
-          </div>
-          <div class="vigencia-notice-details">
-            <span>⏱️ 30 días de vigencia</span>
-            <span>🔄 Renovaciones ilimitadas</span>
-            <span>💰 $56.23 MXN / mes</span>
-          </div>
-        </div>
-      </div>
-    ` : ''}
-
     <form id="publish-form" onsubmit="handlePublish(event)">
-      <input type="hidden" name="type" value="${type}">
+      <input type="hidden" name="type" value="free">
       <div class="form-group">
         <label class="form-label">Título del anuncio *</label>
         <input class="form-input" type="text" name="title" required placeholder="Ej: iPhone 15 Pro — Como nuevo" maxlength="120">
@@ -299,21 +259,19 @@ function renderPublishForm(type = 'free') {
         <label class="form-label">Ubicación *</label>
         <input class="form-input" type="text" name="location" required placeholder="Ej: CDMX, Polanco">
       </div>
-      ${isPremium ? `
-        <div class="form-group">
-          <label class="form-label">Fotos (hasta 5)</label>
-          <div class="image-upload-area" id="image-upload-area" onclick="document.getElementById('image-input').click()">
-            <div class="image-upload-icon">📸</div>
-            <div class="image-upload-text">Haz clic para seleccionar imágenes</div>
-            <div class="image-upload-hint">Agrega fotos para mejor promoción de tu anuncio</div>
-          </div>
-          <input type="file" id="image-input" accept="image/*" multiple style="display:none" onchange="handleImageUpload(event)">
-          <div class="image-preview-grid" id="image-preview-grid"></div>
+      <div class="form-group">
+        <label class="form-label">Fotos (hasta 3)</label>
+        <div class="image-upload-area" id="image-upload-area" onclick="document.getElementById('image-input').click()">
+          <div class="image-upload-icon">📸</div>
+          <div class="image-upload-text">Haz clic para seleccionar imágenes</div>
+          <div class="image-upload-hint">Agrega fotos para mejor promoción de tu anuncio</div>
         </div>
-      ` : ''}
+        <input type="file" id="image-input" accept="image/*" multiple style="display:none" onchange="handleImageUpload(event)">
+        <div class="image-preview-grid" id="image-preview-grid"></div>
+      </div>
       <div class="publish-form-actions">
         <button type="button" class="btn btn-secondary" onclick="navigateTo('/')">Cancelar</button>
-        <button type="submit" class="btn btn-primary">${isPremium ? '⭐ Publicar Premium — $56.23 MXN' : '📝 Publicar Gratis'}</button>
+        <button type="submit" class="btn btn-primary">📝 Publicar Ahora</button>
       </div>
     </form>
   `;
@@ -389,15 +347,9 @@ function renderRenewalInfo(ad) {
   if (!ad) return '';
   const canRenew = Store.canRenew(ad);
   const remaining = Store.getRemainingRenewals(ad);
-  const isPremium = ad.type === 'premium';
   const used = ad.renewalCount || 0;
 
-  let renewalText = '';
-  if (isPremium) {
-    renewalText = `🔄 Renovaciones: ${used} usada${used !== 1 ? 's' : ''} — <strong>Ilimitadas</strong>`;
-  } else {
-    renewalText = `🔄 Renovaciones: ${used} de ${ad.maxRenewals || FREE_MAX_RENEWALS} usadas — <strong>${remaining} restante${remaining !== 1 ? 's' : ''}</strong>`;
-  }
+  const renewalText = `🔄 Renovaciones: ${used} de ${ad.maxRenewals || FREE_MAX_RENEWALS} usadas — <strong>${remaining} restante${remaining !== 1 ? 's' : ''}</strong>`;
 
   return `
     <div class="renewal-info">
@@ -405,12 +357,11 @@ function renderRenewalInfo(ad) {
       ${ad.suspended ? `
         ${canRenew ? `
           <button class="btn btn-primary btn-sm" onclick="handleRenewAd('${ad.id}')">
-            🔄 Renovar Anuncio${isPremium ? '' : ` (${remaining} restante${remaining !== 1 ? 's' : ''})`}
+            🔄 Renovar Anuncio (${remaining} restante${remaining !== 1 ? 's' : ''})
           </button>
         ` : `
           <div class="renewal-exhausted">
             ❌ Has agotado tus renovaciones para este anuncio.
-            ${!isPremium ? '<br><small>Considera publicar un <strong>anuncio Premium ($56.23 MXN)</strong> para renovaciones ilimitadas.</small>' : ''}
           </div>
         `}
       ` : ''}
@@ -421,13 +372,12 @@ function renderRenewalInfo(ad) {
 /* ---- My Ad Card (with vigencia info) ---- */
 function renderMyAdCard(ad, index = 0) {
   const cat = getCategoryById(ad.category);
-  const isPremium = ad.type === 'premium';
   const delay = Math.min(index * 0.06, 0.5);
   const status = Store.getVigenciaStatus(ad);
   const remainingDays = Store.getRemainingDays(ad);
 
   return `
-    <article class="ad-card ${isPremium ? 'premium' : ''} ${ad.suspended ? 'suspended' : ''}" data-id="${ad.id}" style="animation-delay:${delay}s">
+    <article class="ad-card ${ad.suspended ? 'suspended' : ''}" data-id="${ad.id}" style="animation-delay:${delay}s">
       <div class="ad-card-body" onclick="navigateTo('/ad/${ad.id}')">
         <div class="ad-card-category">
           <span>${cat.emoji}</span> ${escapeHtml(cat.name)}
@@ -444,14 +394,19 @@ function renderMyAdCard(ad, index = 0) {
       <div class="ad-card-vigencia">
         <div class="ad-card-vigencia-row">
           ${renderVigenciaBadge(ad)}
-          ${isPremium ? '<span class="badge badge-premium">⭐ Premium</span>' : '<span class="badge badge-free">Gratuito</span>'}
+          ${remainingDays > 0 ? `<span class="badge badge-time">⏱️ ${remainingDays} día${remainingDays !== 1 ? 's' : ''} restante${remainingDays !== 1 ? 's' : ''}</span>` : ''}
         </div>
         ${!ad.suspended && remainingDays > 0 ? `
           <div class="vigencia-progress">
-            <div class="vigencia-progress-bar ${status.cssClass}" style="width:${Math.min(100, (remainingDays / (isPremium ? PREMIUM_DAYS : FREE_DAYS)) * 100)}%"></div>
+            <div class="vigencia-progress-bar ${status.cssClass}" style="width:${Math.min(100, (remainingDays / FREE_DAYS) * 100)}%"></div>
           </div>
         ` : ''}
         ${renderRenewalInfo(ad)}
+        <div style="margin-top:var(--space-3);display:flex;gap:var(--space-2);flex-wrap:wrap">
+          <button class="btn btn-secondary btn-sm" onclick="handleEditAd('${ad.id}')">
+            ✏️ Modificar anuncio
+          </button>
+        </div>
       </div>
     </article>
   `;

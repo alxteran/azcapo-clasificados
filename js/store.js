@@ -4,9 +4,7 @@
 
 /* ---- Vigencia Constants ---- */
 const FREE_DAYS = 15;
-const PREMIUM_DAYS = 30;
 const FREE_MAX_RENEWALS = 3;
-const PREMIUM_MAX_RENEWALS = Infinity;
 const DAY_MS = 86400000; // 1 day in milliseconds
 
 const CATEGORIES = [
@@ -273,6 +271,21 @@ const Store = {
     return data;
   },
 
+  /** Update ad via API (owner only) */
+  async updateAd(id, fields) {
+    const data = await apiRequest('/api/ads/' + id, {
+      method: 'PUT',
+      body: JSON.stringify(fields),
+    });
+    if (data.success && data.ad) {
+      const normalized = normalizeAd(data.ad);
+      const idx = this._ads.findIndex(a => a.id === id);
+      if (idx !== -1) this._ads[idx] = normalized;
+      return { success: true, ad: normalized, message: data.message };
+    }
+    throw new Error(data.message || 'Error al actualizar anuncio');
+  },
+
   getCountByCategory(catId) {
     return this._ads.filter(a => a.category === catId && !a.suspended).length;
   },
@@ -355,97 +368,78 @@ const Store = {
   },
 };
 
-/* ---- Chat Store (stays localStorage for now) ---- */
-const CHAT_STORAGE_KEY = 'clasificados_mx_chats';
+/* ---- Chat Store (API-backed, database persistent) ---- */
+// Messages are stored in PostgreSQL and scoped to the authenticated user.
+// Buyers see only their own conversation per ad.
+// Sellers (ad owners) see all buyer conversations for their ad.
 
 const ChatStore = {
-  _chats: [],
-  _initialized: false,
+  // Cache of loaded conversations keyed by adId
+  _cache: {},
 
   init() {
-    if (this._initialized) return;
-    const saved = localStorage.getItem(CHAT_STORAGE_KEY);
-    if (saved) {
-      try { this._chats = JSON.parse(saved); } catch { this._chats = []; }
+    // Nothing to do on init — data is loaded per-ad from API
+  },
+
+  /** Re-init after login/logout — clear local cache */
+  reloadForUser() {
+    this._cache = {};
+  },
+
+  /**
+   * Load messages for a given ad.
+   * Returns: { role, conversationId, conversations, messages }
+   * role='buyer'   → { role, conversationId, messages: [...] }
+   * role='seller'  → { role, conversations: [{ conversationId, buyerEmail, messages, unreadCount }] }
+   */
+  async loadForAd(adId) {
+    try {
+      const data = await apiRequest('/api/chat/' + adId);
+      if (data.success) {
+        this._cache[adId] = data;
+        return data;
+      }
+      return null;
+    } catch (e) {
+      console.warn('ChatStore.loadForAd failed', e);
+      return null;
     }
-    this._initialized = true;
   },
 
-  _save() {
-    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(this._chats));
+  /** Get cached data for an ad (may be null if not yet loaded) */
+  getCached(adId) {
+    return this._cache[adId] || null;
   },
 
-  // Get or create a conversation for an ad
-  getOrCreateChat(adId) {
-    let chat = this._chats.find(c => c.adId === adId);
-    if (!chat) {
-      chat = {
-        id: 'chat_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
-        adId: adId,
-        messages: [],
-        createdAt: Date.now(),
-        lastActivity: Date.now(),
-      };
-      this._chats.push(chat);
-      this._save();
+  /**
+   * Send a message to an ad's chat.
+   * @param {string} adId
+   * @param {string} text
+   * @param {number|null} conversationId  Required when sender is seller
+   * @returns {Promise<{success, message, conversationId}>}
+   */
+  async sendMessage(adId, text, conversationId = null) {
+    const data = await apiRequest('/api/chat/' + adId, {
+      method: 'POST',
+      body: JSON.stringify({ text, conversationId }),
+    });
+    if (data.success) {
+      // Invalidate cache so next load fetches fresh data
+      delete this._cache[adId];
     }
-    return chat;
+    return data;
   },
 
-  getChatByAdId(adId) {
-    return this._chats.find(c => c.adId === adId) || null;
-  },
-
-  getAllChats() {
-    return [...this._chats].sort((a, b) => b.lastActivity - a.lastActivity);
-  },
-
-  sendMessage(adId, text, sender = 'buyer') {
-    const chat = this.getOrCreateChat(adId);
-    const message = {
-      id: 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
-      text: text,
-      sender: sender, // 'buyer' or 'seller'
-      timestamp: Date.now(),
-      read: false,
-    };
-    chat.messages.push(message);
-    chat.lastActivity = Date.now();
-    this._save();
-    return message;
-  },
-
-  getMessages(adId) {
-    const chat = this.getChatByAdId(adId);
-    return chat ? chat.messages : [];
-  },
-
-  getUnreadCount(adId, role) {
-    const chat = this.getChatByAdId(adId);
-    if (!chat) return 0;
-    const otherRole = role === 'buyer' ? 'seller' : 'buyer';
-    return chat.messages.filter(m => m.sender === otherRole && !m.read).length;
-  },
-
+  /** Count total unread messages across all cached conversations */
   getTotalUnread() {
     let count = 0;
-    this._chats.forEach(chat => {
-      count += chat.messages.filter(m => !m.read).length;
-    });
+    for (const cached of Object.values(this._cache)) {
+      if (cached.role === 'seller' && cached.conversations) {
+        cached.conversations.forEach(c => { count += c.unreadCount || 0; });
+      }
+    }
     return count;
   },
-
-  markAsRead(adId, role) {
-    const chat = this.getChatByAdId(adId);
-    if (!chat) return;
-    const otherRole = role === 'buyer' ? 'seller' : 'buyer';
-    chat.messages.forEach(m => {
-      if (m.sender === otherRole) m.read = true;
-    });
-    this._save();
-  },
-
-  getChatCount() {
-    return this._chats.length;
-  },
 };
+
+

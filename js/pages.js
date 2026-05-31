@@ -9,12 +9,41 @@ function renderHomePage() {
   const total = Store.getTotalCount();
 
   return `
-    <section class="hero">
+    <!-- ===== HERO BANNER CAROUSEL ===== -->
+    <div class="hero-carousel-wrap" id="hero-carousel-wrap">
+      <!-- Loading placeholder -->
+      <div class="hero-carousel-loading" id="hero-carousel-loading">
+        <div class="hero-carousel-spinner"></div>
+      </div>
+      <!-- Slides track -->
+      <div class="hero-carousel-track-outer">
+        <div class="hero-carousel-track" id="hero-carousel-track"></div>
+      </div>
+      <!-- Arrows -->
+      <button class="hero-carousel-arrow hero-carousel-arrow-left"
+              id="hero-carousel-prev" aria-label="Anterior"
+              onclick="heroPrev()" style="display:none">&#8249;</button>
+      <button class="hero-carousel-arrow hero-carousel-arrow-right"
+              id="hero-carousel-next" aria-label="Siguiente"
+              onclick="heroNext()" style="display:none">&#8250;</button>
+      <!-- Dots -->
+      <div class="hero-carousel-dots" id="hero-carousel-dots"></div>
+      <!-- Progress bar -->
+      <div class="hero-carousel-progress" id="hero-carousel-progress" style="width:0%"></div>
+    </div>
+    <!-- ===== /HERO BANNER CAROUSEL ===== -->
+
+    <!-- Search + Stats section (below carousel) -->
+    <section class="hero-search-section">
       <div class="container">
-        <h1 class="hero-title">Encuentra lo que <span class="gradient-text">buscas</span></h1>
-        <p class="hero-subtitle">Tu comunidad de anuncios clasificados en Azcapotzalco. Compra, vende e intercambia de forma rápida y segura.</p>
-        <div class="hero-search">
-          ${renderSearchBar('', '¿Qué estás buscando?')}
+        <div class="hero-search-row">
+          <div class="hero-search-tagline">
+            <h1 class="hero-search-title">Encuentra lo que buscas,</h1>
+            <p class="hero-search-subtitle gradient-text">cerca de ti.</p>
+          </div>
+          <div class="hero-search-bar-wrap">
+            ${renderSearchBar('', '¿Qué estás buscando?')}
+          </div>
         </div>
         <div class="hero-stats">
           <div class="hero-stat">
@@ -266,10 +295,15 @@ function renderAdDetailPage(adId) {
           ` : ''}
 
           <div style="margin-top:var(--space-6)">
-            <div style="display:flex;gap:var(--space-3);margin-bottom:var(--space-4);flex-wrap:wrap;">
+            <div style="display:flex;gap:var(--space-3);margin-bottom:var(--space-4);flex-wrap:wrap;align-items:center;">
               ${isPremium ? '<span class="badge badge-premium">⭐ Premium</span>' : '<span class="badge badge-free">Gratis</span>'}
               <span class="badge badge-category">${cat.emoji} ${escapeHtml(cat.name)}</span>
               ${(Date.now() - ad.createdAt) < 86400000 * 3 ? '<span class="badge badge-new">Nuevo</span>' : ''}
+              ${Store.isMyAd(ad.id) ? `
+                <button class="btn btn-edit-ad" onclick="handleEditAd('${ad.id}')" id="btn-edit-ad-top">
+                  ✏️ Modificar anuncio
+                </button>
+              ` : ''}
             </div>
             <h1 class="ad-detail-title">${escapeHtml(ad.title)}</h1>
             <div class="ad-detail-price-row">
@@ -301,19 +335,23 @@ function renderAdDetailPage(adId) {
         <div class="ad-detail-sidebar">
           <div class="ad-detail-info">
             <h3 style="font-size:var(--text-lg);margin-bottom:var(--space-5);">💬 Chat con el vendedor</h3>
-            <div class="chat-role-switcher" style="margin-bottom:var(--space-4)">
-              <div class="chat-role-btn active" id="role-buyer" onclick="switchChatRole('${ad.id}','buyer')">🛒 Comprador</div>
-              <div class="chat-role-btn" id="role-seller" onclick="switchChatRole('${ad.id}','seller')">🏷️ Vendedor</div>
-            </div>
-            <div class="chat-panel" id="chat-panel-${ad.id}">
-              <div class="chat-messages" id="chat-messages-${ad.id}">
-                ${renderChatMessages(ad.id)}
-              </div>
-              <div class="chat-input-bar">
-                <input class="chat-input" type="text" id="chat-input-${ad.id}" placeholder="Escribe un mensaje..." onkeydown="if(event.key==='Enter'){sendChatMessage('${ad.id}');event.preventDefault()}" autocomplete="off">
-                <button class="chat-send-btn" onclick="sendChatMessage('${ad.id}')" title="Enviar">➤</button>
-              </div>
-            </div>
+            ${AuthStore.isLoggedIn()
+              ? `<div id="chat-container-${ad.id}">
+                  <div class="chat-loading-state">
+                    <div class="chat-loading-spinner"></div>
+                    <span>Cargando mensajes...</span>
+                  </div>
+                </div>`
+              : `<div class="chat-auth-wall">
+                  <div class="chat-auth-wall-icon">🔐</div>
+                  <p class="chat-auth-wall-text">
+                    Inicia sesión para ver los mensajes y contactar al vendedor.
+                  </p>
+                  <button class="btn btn-primary" style="width:100%" onclick="navigateTo('/auth')">
+                    📝 Iniciar sesión / Registrarse
+                  </button>
+                </div>`
+            }
           </div>
         </div>
       </div>
@@ -342,7 +380,7 @@ function renderAuthPage(mode = 'register') {
 }
 
 /* ---- Publish Page ---- */
-function renderPublishPage(type = 'free') {
+function renderPublishPage() {
   // Check if user is logged in
   if (!AuthStore.isLoggedIn()) {
     return `
@@ -357,9 +395,9 @@ function renderPublishPage(type = 'free') {
             <button class="btn btn-primary btn-lg" onclick="navigateTo('/auth')">📝 Registrarse / Iniciar Sesión</button>
           </div>
           <div class="auth-required-benefits">
-            <div class="auth-benefit-item">✅ Publica anuncios gratuitos (15 días, hasta 3 renovaciones)</div>
-            <div class="auth-benefit-item">⭐ Anuncios Premium por solo $56.23 MXN/mes (30 días, renovaciones ilimitadas)</div>
-            <div class="auth-benefit-item">📸 Agrega fotos y textos para mejor promoción</div>
+            <div class="auth-benefit-item">✅ Publica anuncios gratuitos con fotos (15 días de vigencia)</div>
+            <div class="auth-benefit-item">📸 Agrega hasta 3 fotos para mejor promoción</div>
+            <div class="auth-benefit-item">🔄 Renueva hasta 3 veces sin costo</div>
             <div class="auth-benefit-item">🔒 Tu información está protegida</div>
           </div>
         </div>
@@ -372,7 +410,7 @@ function renderPublishPage(type = 'free') {
       <h1 class="publish-page-title">Publicar Anuncio</h1>
       <p class="publish-page-subtitle">Publicando como <strong>${escapeHtml(AuthStore.getCurrentEmail())}</strong></p>
       <div class="publish-form" id="publish-form-container">
-        ${renderPublishForm(type)}
+        ${renderPublishForm()}
       </div>
     </div>
   `;
@@ -414,68 +452,55 @@ function renderMyAdsPage() {
   `;
 }
 
-/* ---- Chat Messages Renderer ---- */
-function renderChatMessages(adId) {
-  const messages = ChatStore.getMessages(adId);
-  if (messages.length === 0) {
+/* ---- Chat Messages Renderer (from API data) ---- */
+function renderChatMessagesFromData(messages, currentUserId) {
+  if (!messages || messages.length === 0) {
     return `
       <div class="chat-empty">
         <div class="chat-empty-icon">💬</div>
-        <div class="chat-empty-text">Inicia la conversación. Escribe un mensaje al vendedor sobre este anuncio.</div>
+        <div class="chat-empty-text">Inicia la conversación enviando un mensaje al vendedor.</div>
       </div>
     `;
   }
-  return messages.map(msg => `
-    <div class="chat-message ${msg.sender}">
-      <div class="chat-bubble">${escapeHtml(msg.text)}</div>
-      <div class="chat-message-meta">
-        <span class="chat-message-sender">${msg.sender === 'buyer' ? '🛒 Comprador' : '🏷️ Vendedor'}</span>
-        <span>· ${timeAgo(msg.timestamp)}</span>
+  return messages.map(msg => {
+    const isOwn = msg.senderId === currentUserId;
+    const roleCss = msg.role || (isOwn ? 'buyer' : 'seller');
+    return `
+      <div class="chat-message ${roleCss}">
+        <div class="chat-bubble">${escapeHtml(msg.text)}</div>
+        <div class="chat-message-meta">
+          <span class="chat-message-sender">${msg.role === 'seller' ? '🏷️ Vendedor' : '🛒 Comprador'}</span>
+          <span>· ${timeAgo(new Date(msg.createdAt).getTime())}</span>
+        </div>
       </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 /* ---- Chats List Page ---- */
 function renderChatsPage() {
-  const chats = ChatStore.getAllChats();
+  if (!AuthStore.isLoggedIn()) {
+    return `
+      <div class="auth-required-page">
+        <div class="auth-required-card">
+          <div class="auth-required-icon">🔐</div>
+          <h2 class="auth-required-title">Inicia sesión para ver tus conversaciones</h2>
+          <p class="auth-required-text">Necesitas una cuenta para acceder a tus mensajes.</p>
+          <div class="auth-required-actions">
+            <button class="btn btn-primary btn-lg" onclick="navigateTo('/auth')">📝 Iniciar sesión / Registrarse</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
   return `
     <div class="my-ads-page">
       <div class="my-ads-header">
         <h1 class="my-ads-title">💬 Mis Conversaciones</h1>
       </div>
-      ${chats.length > 0
-        ? `<div style="display:flex;flex-direction:column;gap:var(--space-4)">
-            ${chats.map(chat => {
-              const ad = Store.getById(chat.adId);
-              if (!ad) return '';
-              const cat = getCategoryById(ad.category);
-              const lastMsg = chat.messages[chat.messages.length - 1];
-              const unread = chat.messages.filter(m => !m.read).length;
-              return `
-                <div class="chat-list-item" onclick="navigateTo('/ad/${ad.id}')">
-                  <div class="chat-list-icon">${cat.emoji}</div>
-                  <div class="chat-list-info">
-                    <div class="chat-list-title">${escapeHtml(ad.title)}</div>
-                    <div class="chat-list-preview">
-                      ${lastMsg ? `${lastMsg.sender === 'buyer' ? '🛒' : '🏷️'} ${escapeHtml(lastMsg.text)}` : 'Sin mensajes'}
-                    </div>
-                  </div>
-                  <div class="chat-list-meta">
-                    <span class="chat-list-time">${lastMsg ? timeAgo(lastMsg.timestamp) : ''}</span>
-                    ${unread > 0 ? `<span class="chat-unread-badge">${unread}</span>` : ''}
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>`
-        : `<div class="empty-state">
-            <div class="empty-state-icon">💬</div>
-            <div class="empty-state-title">No tienes conversaciones</div>
-            <p class="empty-state-text">Cuando envíes un mensaje en un anuncio, la conversación aparecerá aquí.</p>
-            <button class="btn btn-primary" onclick="navigateTo('/')">Explorar anuncios</button>
-          </div>`
-      }
+      <div id="chats-list-content">
+        <div style="text-align:center;padding:3rem 1rem;color:var(--text-muted)">⏳ Cargando conversaciones...</div>
+      </div>
     </div>
   `;
 }
