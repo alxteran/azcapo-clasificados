@@ -3,23 +3,26 @@ const { authMiddleware } = require('../../lib/auth');
 const { cors } = require('../../lib/cors');
 
 /* ---- Auto-migrate: create table on first use ---- */
+let _tableReady = false;
 async function ensureTable() {
-  await sql`
-    CREATE TABLE IF NOT EXISTS blog_posts (
-      id           SERIAL PRIMARY KEY,
-      public_id    VARCHAR(80)  NOT NULL UNIQUE,
-      author_id    INTEGER      REFERENCES users(id) ON DELETE SET NULL,
-      author_email VARCHAR(255) NOT NULL,
-      title        VARCHAR(120) NOT NULL,
-      excerpt      TEXT         NOT NULL,
-      body         TEXT         NOT NULL,
-      category     VARCHAR(60)  NOT NULL DEFAULT 'general',
-      cover_emoji  VARCHAR(10)  NOT NULL DEFAULT '📝',
-      status       VARCHAR(20)  NOT NULL DEFAULT 'pending',
-      created_at   TIMESTAMP    DEFAULT NOW(),
-      published_at TIMESTAMP
-    )
-  `;
+  if (_tableReady) return;
+  await sql(
+    `CREATE TABLE IF NOT EXISTS blog_posts (
+       id           SERIAL PRIMARY KEY,
+       public_id    VARCHAR(80)  NOT NULL UNIQUE,
+       author_id    INTEGER      REFERENCES users(id) ON DELETE SET NULL,
+       author_email VARCHAR(255) NOT NULL,
+       title        VARCHAR(120) NOT NULL,
+       excerpt      TEXT         NOT NULL,
+       body         TEXT         NOT NULL,
+       category     VARCHAR(60)  NOT NULL DEFAULT 'general',
+       cover_emoji  VARCHAR(10)  NOT NULL DEFAULT '',
+       status       VARCHAR(20)  NOT NULL DEFAULT 'pending',
+       created_at   TIMESTAMP    DEFAULT NOW(),
+       published_at TIMESTAMP
+     )`
+  );
+  _tableReady = true;
 }
 
 module.exports = async function handler(req, res) {
@@ -75,8 +78,8 @@ async function handleList(req, res) {
 
     return res.status(200).json({ success: true, posts, total, page: Number(page), limit: Number(limit) });
   } catch (err) {
-    console.error('Blog list error:', err);
-    return res.status(500).json({ success: false, message: 'Error al obtener artículos.' });
+    console.error('Blog list error:', err.message || err);
+    return res.status(500).json({ success: false, message: 'Error al obtener artículos: ' + (err.message || String(err)) });
   }
 }
 
