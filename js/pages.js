@@ -164,6 +164,23 @@ function renderHomePage() {
               ${recent.map((a, i) => renderAdCard(a, i)).join('')}
             </div>
           </section>
+
+          <!-- Blog Preview Section -->
+          <section class="section blog-preview-section" id="blog-preview-section">
+            <div class="section-header">
+              <div>
+                <h2 class="section-title">📝 Blog de la Comunidad</h2>
+                <p class="section-subtitle">Consejos, guías y noticias locales</p>
+              </div>
+              <a class="section-link" href="/blog">Ver todos →</a>
+            </div>
+            <div class="blog-preview-grid" id="blog-preview-grid">
+              <div class="blog-preview-loading">Cargando artículos…</div>
+            </div>
+            <div style="text-align:center;margin-top:var(--space-5)">
+              <a href="/blog" class="btn btn-secondary">✨ Ver todos los artículos del Blog</a>
+            </div>
+          </section>
         </div>
       </div>
     </div>
@@ -540,10 +557,11 @@ function renderFooter() {
             </div>
           </div>
           <div>
-            <div class="footer-col-title">Cuenta</div>
+            <div class="footer-col-title">Cuenta y Blog</div>
             <div class="footer-links">
               <a class="footer-link" href="#" onclick="navigateTo('/publish');return false;">Publicar anuncio</a>
               <a class="footer-link" href="#" onclick="navigateTo('/my-ads');return false;">Mis anuncios</a>
+              <a class="footer-link" href="/blog">📝 Blog de la Comunidad</a>
             </div>
           </div>
         </div>

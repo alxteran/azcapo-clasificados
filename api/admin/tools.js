@@ -43,9 +43,15 @@ module.exports = async function handler(req, res) {
     return handleResetExpiry(req, res);
   } else if (action === 'dedup') {
     return handleDedup(req, res);
+  } else if (action === 'migrate-blog') {
+    return handleMigrateBlog(req, res);
+  } else if (action === 'approve-post') {
+    return handleApprovePost(req, res);
+  } else if (action === 'reject-post') {
+    return handleRejectPost(req, res);
   } else {
     return res.status(400).json({
-      error: 'Unknown action. Use: ?action=migrate-chat | reset-expiry | dedup',
+      error: 'Unknown action. Use: ?action=migrate-chat | reset-expiry | dedup | migrate-blog | approve-post | reject-post',
     });
   }
 };
@@ -112,6 +118,87 @@ async function handleResetExpiry(req, res) {
   } catch (error) {
     console.error('reset-expiry error:', error);
     return res.status(500).json({ success: false, message: 'Error al reiniciar expiración.' });
+  }
+}
+
+/* ---- Blog Actions ---- */
+
+/** Create blog_posts table (idempotent) */
+async function handleMigrateBlog(req, res) {
+  try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS blog_posts (
+        id           SERIAL PRIMARY KEY,
+        public_id    VARCHAR(80)  NOT NULL UNIQUE,
+        author_id    INTEGER      REFERENCES users(id) ON DELETE SET NULL,
+        author_email VARCHAR(255) NOT NULL,
+        title        VARCHAR(120) NOT NULL,
+        excerpt      TEXT         NOT NULL,
+        body         TEXT         NOT NULL,
+        category     VARCHAR(60)  NOT NULL DEFAULT 'general',
+        cover_emoji  VARCHAR(10)  NOT NULL DEFAULT '📝',
+        status       VARCHAR(20)  NOT NULL DEFAULT 'pending',
+        created_at   TIMESTAMP    DEFAULT NOW(),
+        published_at TIMESTAMP
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_blog_posts_status ON blog_posts(status)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_blog_posts_author ON blog_posts(author_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_blog_posts_category ON blog_posts(category)`;
+
+    return res.status(200).json({
+      success: true,
+      message: 'blog_posts table created/verified successfully.'
+    });
+  } catch (error) {
+    console.error('migrate-blog error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+/** Approve a pending blog post */
+async function handleApprovePost(req, res) {
+  try {
+    const postId = (req.query && req.query.postId) || '';
+    if (!postId) return res.status(400).json({ error: 'postId query param is required.' });
+
+    const result = await sql`
+      UPDATE blog_posts
+      SET status = 'approved', published_at = NOW()
+      WHERE public_id = ${postId} AND status = 'pending'
+      RETURNING public_id, title, status, published_at
+    `;
+
+    if (result.length === 0) {
+      return res.status(404).json({ success: false, message: 'Post not found or already processed.' });
+    }
+    return res.status(200).json({ success: true, post: result[0] });
+  } catch (error) {
+    console.error('approve-post error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+/** Reject a pending blog post */
+async function handleRejectPost(req, res) {
+  try {
+    const postId = (req.query && req.query.postId) || '';
+    if (!postId) return res.status(400).json({ error: 'postId query param is required.' });
+
+    const result = await sql`
+      UPDATE blog_posts
+      SET status = 'rejected'
+      WHERE public_id = ${postId} AND status = 'pending'
+      RETURNING public_id, title, status
+    `;
+
+    if (result.length === 0) {
+      return res.status(404).json({ success: false, message: 'Post not found or already processed.' });
+    }
+    return res.status(200).json({ success: true, post: result[0] });
+  } catch (error) {
+    console.error('reject-post error:', error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 }
 

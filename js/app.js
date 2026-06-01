@@ -111,6 +111,7 @@ function router() {
   if (path === '/' || path === '') {
     heroCarousel.stop();
     setTimeout(() => heroCarousel.init(), 0);
+    setTimeout(() => loadBlogPreview(), 200);
   }
 
   // If on auth page, generate and draw CAPTCHA
@@ -201,6 +202,9 @@ function renderHeader() {
           <img src="assets/logo.png" alt="Azcapo Clasificados" class="header-logo-img">
         </div>
         <div class="header-actions">
+          <a class="header-nav-link" href="/blog" style="color:var(--text-secondary)" title="Blog de la comunidad">
+            📝 <span class="btn-text">Blog</span>
+          </a>
           ${isLoggedIn ? `
             <a class="header-nav-link" data-nav="my-ads" href="#/my-ads" onclick="return false" style="color:var(--text-secondary)">
               📌 <span class="btn-text">Mis Anuncios</span>
@@ -1193,3 +1197,51 @@ const heroCarousel = (() => {
 function heroPrev() { heroCarousel.prev(); }
 function heroNext() { heroCarousel.next(); }
 function heroDot(i) { heroCarousel.dot(i); }
+
+/* ---- Blog Preview (Home Page) ---- */
+async function loadBlogPreview() {
+  const grid = document.getElementById('blog-preview-grid');
+  if (!grid) return;
+
+  try {
+    const res  = await fetch('/api/blog?limit=3');
+    const data = await res.json();
+    const posts = (data.success && data.posts) ? data.posts : [];
+
+    if (posts.length === 0) {
+      grid.innerHTML = `
+        <div style="text-align:center;padding:var(--space-8) 0;color:var(--text-muted)">
+          <div style="font-size:2rem;margin-bottom:var(--space-3)">📭</div>
+          <p style="font-size:var(--text-sm)">Sé el primero en publicar un artículo en el blog.</p>
+          <a href="/blog" class="btn btn-primary" style="margin-top:var(--space-4);display:inline-block">✍️ Ir al Blog</a>
+        </div>`;
+      return;
+    }
+
+    grid.innerHTML = posts.map((p, i) => {
+      const date = p.published_at
+        ? new Date(p.published_at).toLocaleDateString('es-MX', { day:'numeric', month:'long', year:'numeric' })
+        : '';
+      const initials = p.author_email ? p.author_email.split('@')[0].slice(0,2).toUpperCase() : '??';
+      const delay = i * 0.08;
+      return `
+        <a href="/blog" class="blog-preview-card" style="animation-delay:${delay}s;text-decoration:none">
+          <div class="blog-preview-cover">${escapeHtml(p.cover_emoji || '📝')}</div>
+          <div class="blog-preview-body">
+            <div class="blog-preview-cat">${escapeHtml(p.category || 'general')}</div>
+            <div class="blog-preview-title">${escapeHtml(p.title)}</div>
+            <div class="blog-preview-excerpt">${escapeHtml(p.excerpt)}</div>
+            <div class="blog-preview-meta">
+              <div class="blog-preview-avatar">${initials}</div>
+              <span>${escapeHtml(p.author_email.split('@')[0])}</span>
+              ${date ? `<span style="color:var(--text-muted)">· ${date}</span>` : ''}
+            </div>
+          </div>
+        </a>`;
+    }).join('');
+  } catch(e) {
+    console.warn('Blog preview load failed:', e);
+    const grid2 = document.getElementById('blog-preview-grid');
+    if (grid2) grid2.innerHTML = '';
+  }
+}
