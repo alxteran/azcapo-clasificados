@@ -1,6 +1,15 @@
 {
   "installCommand": "npm install",
   "buildCommand": "node scripts/generate-manifest.js",
+  "git": {
+    "deploymentEnabled": {
+      "main": false
+    }
+  },
+  "routes": [
+    { "src": "/blog", "dest": "/blog/index.html" },
+    { "src": "/blog/(.*)", "dest": "/blog/index.html" }
+  ],
   "crons": [
     {
       "path": "/api/cron/expire-ads",
