@@ -6,9 +6,8 @@
       "main": false
     }
   },
-  "routes": [
-    { "src": "/blog", "dest": "/blog/index.html" },
-    { "src": "/blog/(.*)", "dest": "/blog/index.html" }
+  "rewrites": [
+    { "source": "/blog", "destination": "/blog/index.html" }
   ],
   "crons": [
     {
