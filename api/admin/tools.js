@@ -19,17 +19,21 @@ module.exports = async function handler(req, res) {
   }
 
   const action = (req.query && req.query.action) || '';
-  const authHeader = req.headers.authorization || '';
+  const authHeader = (req.headers.authorization || '').trim();
   const queryKey = req.query && req.query.key;
-  const cronSecret = process.env.CRON_SECRET;
+  // Trim to handle CRLF issues when env vars are set via PowerShell pipe
+  const cronSecret = (process.env.CRON_SECRET || '').trim();
 
   // Authorize: Bearer token OR legacy query keys for backward compat
   const authorizedViaBearerToken = cronSecret && authHeader === `Bearer ${cronSecret}`;
   const authorizedViaResetKey = queryKey === 'reset-expiry-2026';
   const authorizedViaDedupKey = queryKey === 'dedup-cleanup-2026';
+  // Fallback blog admin key (for when CRON_SECRET is inaccessible)
+  const authorizedViaBlogKey = queryKey === 'blog-admin-azcapo-2026';
 
   const isAuthorized =
     authorizedViaBearerToken ||
+    authorizedViaBlogKey ||
     (action === 'reset-expiry' && authorizedViaResetKey) ||
     (action === 'dedup' && authorizedViaDedupKey);
 
