@@ -49,9 +49,11 @@ module.exports = async function handler(req, res) {
     return handleApprovePost(req, res);
   } else if (action === 'reject-post') {
     return handleRejectPost(req, res);
+  } else if (action === 'list-pending') {
+    return handleListPending(req, res);
   } else {
     return res.status(400).json({
-      error: 'Unknown action. Use: ?action=migrate-chat | reset-expiry | dedup | migrate-blog | approve-post | reject-post',
+      error: 'Unknown action. Use: ?action=migrate-chat | reset-expiry | dedup | migrate-blog | approve-post | reject-post | list-pending',
     });
   }
 };
@@ -198,6 +200,22 @@ async function handleRejectPost(req, res) {
     return res.status(200).json({ success: true, post: result[0] });
   } catch (error) {
     console.error('reject-post error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+/** List all pending blog posts */
+async function handleListPending(req, res) {
+  try {
+    const posts = await sql`
+      SELECT public_id, title, author_email, category, created_at
+      FROM blog_posts
+      WHERE status = 'pending'
+      ORDER BY created_at DESC
+    `;
+    return res.status(200).json({ success: true, posts });
+  } catch (error) {
+    console.error('list-pending error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 }
