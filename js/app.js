@@ -69,9 +69,16 @@ function router() {
     if (AuthStore.isLoggedIn()) {
       setTimeout(() => loadChatForAd(adId), 0);
     }
+    // Init detail mini-map if ad has coordinates
+    const detailAd = Store.getById(adId);
+    if (detailAd && detailAd.latitude && detailAd.longitude) {
+      setTimeout(() => initDetailMap('detail-map-' + adId, detailAd.latitude, detailAd.longitude), 200);
+    }
   } else if (path === '/publish') {
     html = renderPublishPage();
     updateActiveNav('publish');
+    // Init map widget after DOM renders
+    setTimeout(() => initAgMap(), 100);
   } else if (path === '/my-ads') {
     html = renderMyAdsPage();
     updateActiveNav('my-ads');
@@ -415,6 +422,8 @@ async function handlePublish(event) {
 
   try {
     const data = new FormData(form);
+    const latVal = data.get('latitude');
+    const lngVal = data.get('longitude');
     const ad = {
       title: data.get('title'),
       description: data.get('description'),
@@ -423,6 +432,8 @@ async function handlePublish(event) {
       location: data.get('location'),
       type: 'free',
       images: [...uploadedImages],
+      latitude: latVal ? Number(latVal) : null,
+      longitude: lngVal ? Number(lngVal) : null,
       contact: {
         name: AuthStore.getCurrentEmail(),
         phone: 'No especificado',
@@ -456,7 +467,7 @@ function showPublishConfirmation(ad) {
       <div class="publish-confirmation">
         <div class="confirmation-icon">🎉</div>
         <h2 class="confirmation-title">¡Tu anuncio ha sido publicado!</h2>
-        <p class="confirmation-subtitle">Tu anuncio estará visible durante 15 días.</p>
+        <p class="confirmation-subtitle">Tu anuncio estará visible durante 30 días.</p>
 
         <div class="confirmation-ad-link">
           <button class="btn btn-primary" onclick="navigateTo('/ad/${adId}')">
@@ -657,6 +668,9 @@ function handleEditAd(adId) {
      </div>`
   ).join('');
 
+  const editLat = ad.latitude || '';
+  const editLng = ad.longitude || '';
+
   openModal('✏️ Modificar Anuncio',
     `<form id="edit-ad-form" onsubmit="handleSaveEdit(event, '${ad.id}')">
       <div class="form-group">
@@ -677,7 +691,30 @@ function handleEditAd(adId) {
       </div>
       <div class="form-group">
         <label class="form-label">Ubicación *</label>
-        <input class="form-input" type="text" name="location" required value="${escapeHtml(ad.location)}">
+        <input class="form-input" type="text" name="location" id="ag-location-text" required value="${escapeHtml(ad.location)}">
+      </div>
+      <div class="form-group">
+        <div class="ag-map-widget" id="ag-map-widget">
+          <h3 class="ag-map-widget-title">📍 Ubicación en el Mapa</h3>
+          <p class="ag-map-widget-subtitle">Arrastra el marcador o busca tu dirección para una mayor precisión.</p>
+          <div class="ag-map-search-bar">
+            <input id="ag-search-input" type="text" placeholder="Buscar dirección..." autocomplete="off">
+            <button type="button" id="ag-geo-btn" class="ag-map-geo-btn">📍 Usar mi ubicación</button>
+          </div>
+          <div class="ag-map-canvas" id="ag-map-canvas"></div>
+          <div class="ag-map-info-panel" id="ag-info-panel">
+            <div class="ag-map-info-row">
+              <span class="ag-map-info-label">📌 Dirección:</span>
+              <span id="ag-address-display">Selecciona una ubicación en el mapa</span>
+            </div>
+            <div class="ag-map-info-row">
+              <span class="ag-map-info-label">📏 Distancia al centro:</span>
+              <span id="ag-distance-display">--</span>
+            </div>
+          </div>
+          <input type="hidden" id="ag-hidden-lat" name="latitude" value="${editLat}">
+          <input type="hidden" id="ag-hidden-lng" name="longitude" value="${editLng}">
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label">Fotos (hasta 3)</label>
@@ -692,6 +729,9 @@ function handleEditAd(adId) {
     `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
      <button class="btn btn-primary" onclick="document.getElementById('edit-ad-form').requestSubmit()">💾 Guardar cambios</button>`
   );
+
+  // Init map inside modal after DOM renders
+  setTimeout(() => initAgMap(editLat ? Number(editLat) : null, editLng ? Number(editLng) : null), 200);
 }
 
 function handleEditImageUpload(event) {
@@ -728,6 +768,8 @@ async function handleSaveEdit(event, adId) {
 
   try {
     const data = new FormData(form);
+    const latVal = data.get('latitude');
+    const lngVal = data.get('longitude');
     const fields = {
       title: data.get('title'),
       description: data.get('description'),
@@ -735,6 +777,8 @@ async function handleSaveEdit(event, adId) {
       price: Number(data.get('price')),
       location: data.get('location'),
       images: [...editUploadedImages],
+      latitude: latVal ? Number(latVal) : null,
+      longitude: lngVal ? Number(lngVal) : null,
     };
 
     const result = await Store.updateAd(adId, fields);
@@ -1244,4 +1288,219 @@ async function loadBlogPreview() {
     const grid2 = document.getElementById('blog-preview-grid');
     if (grid2) grid2.innerHTML = '';
   }
+}
+
+/* ============================================
+   MAP WIDGET — Google Maps Location Picker
+   ============================================ */
+
+/**
+ * Initialize the Google Maps location picker widget.
+ * Called after the publish page or edit modal renders.
+ * @param {number|null} existingLat - Pre-existing latitude (for edit mode)
+ * @param {number|null} existingLng - Pre-existing longitude (for edit mode)
+ */
+function initAgMap(existingLat, existingLng) {
+  // Bail if Google Maps API hasn't loaded yet
+  if (typeof google === 'undefined' || !google.maps) {
+    console.warn('Google Maps API not loaded yet, retrying...');
+    setTimeout(() => initAgMap(existingLat, existingLng), 500);
+    return;
+  }
+
+  const mapDiv = document.getElementById('ag-map-canvas');
+  if (!mapDiv) return; // Widget not in the DOM
+
+  const searchInput = document.getElementById('ag-search-input');
+  const hiddenLat = document.getElementById('ag-hidden-lat');
+  const hiddenLng = document.getElementById('ag-hidden-lng');
+  const addressDisplay = document.getElementById('ag-address-display');
+  const distanceDisplay = document.getElementById('ag-distance-display');
+  const locationTextInput = document.getElementById('ag-location-text');
+
+  // Default center: Azcapotzalco
+  const defaultPos = { lat: 19.4833, lng: -99.1833 };
+
+  // Use existing coordinates if available, otherwise default
+  const initialPos = (existingLat && existingLng)
+    ? { lat: existingLat, lng: existingLng }
+    : defaultPos;
+
+  // Create map
+  const map = new google.maps.Map(mapDiv, {
+    center: initialPos,
+    zoom: 15,
+    mapTypeControl: false,
+    streetViewControl: false,
+    fullscreenControl: true,
+    styles: [
+      { elementType: 'geometry', stylers: [{ color: '#1d1d2e' }] },
+      { elementType: 'labels.text.stroke', stylers: [{ color: '#1d1d2e' }] },
+      { elementType: 'labels.text.fill', stylers: [{ color: '#8a8a9e' }] },
+      { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2c2c40' }] },
+      { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#9ca5b3' }] },
+      { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1626' }] },
+      { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#6a6a80' }] },
+      { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#1a2a1a' }] },
+      { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#22223a' }] },
+    ]
+  });
+
+  // Create draggable marker
+  const marker = new google.maps.Marker({
+    position: initialPos,
+    map: map,
+    draggable: true,
+    title: 'Arrástrame a la ubicación exacta',
+    animation: google.maps.Animation.DROP
+  });
+
+  // Places Autocomplete
+  if (searchInput) {
+    const autocomplete = new google.maps.places.Autocomplete(searchInput, {
+      componentRestrictions: { country: 'mx' },
+      fields: ['geometry', 'formatted_address']
+    });
+    autocomplete.bindTo('bounds', map);
+
+    autocomplete.addListener('place_changed', function() {
+      const place = autocomplete.getPlace();
+      if (!place.geometry) return;
+
+      map.panTo(place.geometry.location);
+      map.setZoom(16);
+      marker.setPosition(place.geometry.location);
+      updateLocationData(place.geometry.location);
+    });
+  }
+
+  // Update hidden fields, address display, location text, and distance
+  function updateLocationData(location) {
+    const lat = location.lat();
+    const lng = location.lng();
+
+    if (hiddenLat) hiddenLat.value = lat;
+    if (hiddenLng) hiddenLng.value = lng;
+
+    // Reverse geocode to get street address
+    const geocoder = new google.maps.Geocoder();
+    geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+      if (status === 'OK' && results[0]) {
+        const addr = results[0].formatted_address;
+        if (addressDisplay) addressDisplay.textContent = addr;
+        // Also fill the main location text field
+        if (locationTextInput) locationTextInput.value = addr;
+      }
+    });
+
+    // Calculate distance from Azcapotzalco center (Haversine)
+    calculateDistance(lat, lng, defaultPos.lat, defaultPos.lng);
+  }
+
+  // Haversine formula
+  function calculateDistance(lat1, lng1, lat2, lng2) {
+    const R = 6371; // Earth radius km
+    const dLat = (lat1 - lat2) * Math.PI / 180;
+    const dLng = (lng1 - lng2) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat2 * Math.PI / 180) * Math.cos(lat1 * Math.PI / 180) *
+              Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const d = R * c;
+    if (distanceDisplay) distanceDisplay.textContent = d.toFixed(2) + ' km';
+  }
+
+  // Event: marker drag end
+  marker.addListener('dragend', function() {
+    updateLocationData(marker.getPosition());
+  });
+
+  // Event: click on map to move marker
+  map.addListener('click', function(e) {
+    marker.setPosition(e.latLng);
+    updateLocationData(e.latLng);
+  });
+
+  // Event: geolocation button
+  const geoBtn = document.getElementById('ag-geo-btn');
+  if (geoBtn) {
+    geoBtn.addEventListener('click', function() {
+      if (!navigator.geolocation) {
+        showToast('Tu navegador no soporta geolocalización.', 'error');
+        return;
+      }
+
+      geoBtn.disabled = true;
+      geoBtn.textContent = '⏳ Obteniendo ubicación...';
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const pos = new google.maps.LatLng(
+            position.coords.latitude,
+            position.coords.longitude
+          );
+          map.setCenter(pos);
+          map.setZoom(16);
+          marker.setPosition(pos);
+          updateLocationData(pos);
+
+          geoBtn.disabled = false;
+          geoBtn.textContent = '📍 Usar mi ubicación';
+        },
+        (error) => {
+          showToast('Error al obtener ubicación: ' + error.message, 'error');
+          geoBtn.disabled = false;
+          geoBtn.textContent = '📍 Usar mi ubicación';
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    });
+  }
+
+  // If we have existing coords, update the display
+  if (existingLat && existingLng) {
+    updateLocationData(new google.maps.LatLng(existingLat, existingLng));
+  }
+}
+
+/**
+ * Initialize a read-only mini-map on the ad detail page.
+ * @param {string} canvasId - DOM id of the map container
+ * @param {number} lat
+ * @param {number} lng
+ */
+function initDetailMap(canvasId, lat, lng) {
+  if (typeof google === 'undefined' || !google.maps) {
+    setTimeout(() => initDetailMap(canvasId, lat, lng), 500);
+    return;
+  }
+
+  const mapDiv = document.getElementById(canvasId);
+  if (!mapDiv) return;
+
+  const pos = { lat, lng };
+  const map = new google.maps.Map(mapDiv, {
+    center: pos,
+    zoom: 15,
+    mapTypeControl: false,
+    streetViewControl: false,
+    zoomControl: true,
+    fullscreenControl: false,
+    draggable: false,
+    scrollwheel: false,
+    styles: [
+      { elementType: 'geometry', stylers: [{ color: '#1d1d2e' }] },
+      { elementType: 'labels.text.stroke', stylers: [{ color: '#1d1d2e' }] },
+      { elementType: 'labels.text.fill', stylers: [{ color: '#8a8a9e' }] },
+      { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2c2c40' }] },
+      { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1626' }] },
+      { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#1a2a1a' }] },
+    ]
+  });
+
+  new google.maps.Marker({
+    position: pos,
+    map: map,
+    title: 'Ubicación del artículo'
+  });
 }

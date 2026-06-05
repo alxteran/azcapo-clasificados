@@ -251,8 +251,8 @@ Verificar en **Vercel → Settings → Crons** que aparezca:
 
 | Concepto | Gratuito | Premium |
 |----------|----------|---------|
-| Vigencia | 15 días | 30 días |
-| Renovaciones | 3 máximo | Ilimitadas |
+| Vigencia | 30 días | 30 días |
+| Renovaciones | Ilimitadas | Ilimitadas |
 | Destacado | No | Sí (aparece primero) |
 | Estado inicial | `active` | `pending_payment` → `active` |
 

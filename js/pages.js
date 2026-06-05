@@ -346,6 +346,13 @@ function renderAdDetailPage(adId) {
             </div>
             <h2 style="font-size:var(--text-lg);margin-bottom:var(--space-3);">Descripción</h2>
             <div class="ad-detail-description">${escapeHtml(ad.description)}</div>
+
+            ${ad.latitude && ad.longitude ? `
+              <div class="ad-detail-map-wrap">
+                <h2 class="ad-detail-map-title">📍 Ubicación</h2>
+                <div class="ad-detail-map-canvas" id="detail-map-${ad.id}"></div>
+              </div>
+            ` : ''}
           </div>
         </div>
 
@@ -412,9 +419,9 @@ function renderPublishPage() {
             <button class="btn btn-primary btn-lg" onclick="navigateTo('/auth')">📝 Registrarse / Iniciar Sesión</button>
           </div>
           <div class="auth-required-benefits">
-            <div class="auth-benefit-item">✅ Publica anuncios gratuitos con fotos (15 días de vigencia)</div>
+            <div class="auth-benefit-item">✅ Publica anuncios gratuitos con fotos (30 días de vigencia)</div>
             <div class="auth-benefit-item">📸 Agrega hasta 3 fotos para mejor promoción</div>
-            <div class="auth-benefit-item">🔄 Renueva hasta 3 veces sin costo</div>
+            <div class="auth-benefit-item">🔄 Renueva gratis las veces que necesites</div>
             <div class="auth-benefit-item">🔒 Tu información está protegida</div>
           </div>
         </div>
@@ -547,13 +554,13 @@ function renderFooter() {
           <div>
             <div class="footer-col-title">Categorías</div>
             <div class="footer-links">
-              ${CATEGORIES.slice(0, 7).map(c => `<a class="footer-link" href="#" onclick="navigateTo('/category/${c.id}');return false;">${c.emoji} ${c.name}</a>`).join('')}
+              ${CATEGORIES.slice(0, 8).map(c => `<a class="footer-link" href="#" onclick="navigateTo('/category/${c.id}');return false;">${c.emoji} ${c.name}</a>`).join('')}
             </div>
           </div>
           <div>
             <div class="footer-col-title">Más</div>
             <div class="footer-links">
-              ${CATEGORIES.slice(7).map(c => `<a class="footer-link" href="#" onclick="navigateTo('/category/${c.id}');return false;">${c.emoji} ${c.name}</a>`).join('')}
+              ${CATEGORIES.slice(8).map(c => `<a class="footer-link" href="#" onclick="navigateTo('/category/${c.id}');return false;">${c.emoji} ${c.name}</a>`).join('')}
             </div>
           </div>
           <div>

@@ -210,20 +210,28 @@ function showToast(message, type = 'success') {
 }
 
 /* ---- Publish Form ---- */
-function renderPublishForm() {
+function renderPublishForm(existingAd) {
+  const title = existingAd ? escapeHtml(existingAd.title) : '';
+  const description = existingAd ? escapeHtml(existingAd.description) : '';
+  const price = existingAd ? existingAd.price : '';
+  const location = existingAd ? escapeHtml(existingAd.location) : '';
+  const lat = existingAd && existingAd.latitude ? existingAd.latitude : '';
+  const lng = existingAd && existingAd.longitude ? existingAd.longitude : '';
+  const selectedCat = existingAd ? existingAd.category : '';
+
   return `
     <div class="vigencia-notice vigencia-free">
       <div class="vigencia-notice-icon">📋</div>
       <div class="vigencia-notice-content">
         <div class="vigencia-notice-title">Publica tu anuncio</div>
         <div class="vigencia-notice-text">
-          Tu anuncio tendrá una <strong>vigencia de 15 días</strong> y podrás agregar <strong>hasta 3 fotos</strong> para mejor promoción.
-          Podrás <strong>renovarlo hasta 3 veces</strong> sin costo adicional.
+          Tu anuncio tendrá una <strong>vigencia de 30 días</strong> y podrás agregar <strong>hasta 3 fotos</strong> para mejor promoción.
+          Podrás <strong>renovarlo gratis</strong> las veces que necesites.
         </div>
         <div class="vigencia-notice-details">
-          <span>⏱️ 15 días de vigencia</span>
+          <span>⏱️ 30 días de vigencia</span>
           <span>📸 Hasta 3 fotos</span>
-          <span>🔄 3 renovaciones</span>
+          <span>🔄 Renovaciones ilimitadas</span>
           <span>💰 Sin costo</span>
         </div>
       </div>
@@ -233,7 +241,7 @@ function renderPublishForm() {
       <input type="hidden" name="type" value="free">
       <div class="form-group">
         <label class="form-label">Título del anuncio *</label>
-        <input class="form-input" type="text" name="title" required placeholder="Ej: iPhone 15 Pro — Como nuevo" maxlength="120">
+        <input class="form-input" type="text" name="title" required placeholder="Ej: iPhone 15 Pro — Como nuevo" maxlength="120" value="${title}">
       </div>
       <div class="form-group">
         <label class="form-label">Categoría *</label>
@@ -241,24 +249,56 @@ function renderPublishForm() {
           <option value="">Selecciona una categoría</option>
           ${CATEGORIES.map(c => `
             <optgroup label="${c.emoji} ${c.name}">
-              ${c.subs.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
+              ${c.subs.map(s => `<option value="${s.id}" ${selectedCat === s.id ? 'selected' : ''}>${s.name}</option>`).join('')}
             </optgroup>
           `).join('')}
         </select>
       </div>
       <div class="form-group">
         <label class="form-label">Precio (MXN) *</label>
-        <input class="form-input" type="number" name="price" required min="0" placeholder="0">
+        <input class="form-input" type="number" name="price" required min="0" placeholder="0" value="${price}">
       </div>
       <div class="form-group">
         <label class="form-label">Descripción *</label>
-        <textarea class="form-textarea" name="description" required placeholder="Describe tu producto o servicio con detalle..." maxlength="2000"></textarea>
+        <textarea class="form-textarea" name="description" required placeholder="Describe tu producto o servicio con detalle..." maxlength="2000">${description}</textarea>
         <span class="form-hint">Máximo 2000 caracteres</span>
       </div>
       <div class="form-group">
         <label class="form-label">Ubicación *</label>
-        <input class="form-input" type="text" name="location" required placeholder="Ej: CDMX, Polanco">
+        <input class="form-input" type="text" name="location" id="ag-location-text" required placeholder="Ej: CDMX, Polanco" value="${location}">
       </div>
+
+      <!-- Map Location Widget -->
+      <div class="form-group">
+        <div class="ag-map-widget" id="ag-map-widget">
+          <h3 class="ag-map-widget-title">📍 Ubicación en el Mapa</h3>
+          <p class="ag-map-widget-subtitle">Arrastra el marcador o busca tu dirección para una mayor precisión.</p>
+
+          <div class="ag-map-search-bar">
+            <input id="ag-search-input" type="text" placeholder="Buscar dirección..." autocomplete="off">
+            <button type="button" id="ag-geo-btn" class="ag-map-geo-btn">
+              📍 Usar mi ubicación
+            </button>
+          </div>
+
+          <div class="ag-map-canvas" id="ag-map-canvas"></div>
+
+          <div class="ag-map-info-panel" id="ag-info-panel">
+            <div class="ag-map-info-row">
+              <span class="ag-map-info-label">📌 Dirección:</span>
+              <span id="ag-address-display">Selecciona una ubicación en el mapa</span>
+            </div>
+            <div class="ag-map-info-row">
+              <span class="ag-map-info-label">📏 Distancia al centro:</span>
+              <span id="ag-distance-display">--</span>
+            </div>
+          </div>
+
+          <input type="hidden" id="ag-hidden-lat" name="latitude" value="${lat}">
+          <input type="hidden" id="ag-hidden-lng" name="longitude" value="${lng}">
+        </div>
+      </div>
+
       <div class="form-group">
         <label class="form-label">Fotos (hasta 3)</label>
         <div class="image-upload-area" id="image-upload-area" onclick="document.getElementById('image-input').click()">
@@ -349,7 +389,10 @@ function renderRenewalInfo(ad) {
   const remaining = Store.getRemainingRenewals(ad);
   const used = ad.renewalCount || 0;
 
-  const renewalText = `🔄 Renovaciones: ${used} de ${ad.maxRenewals || FREE_MAX_RENEWALS} usadas — <strong>${remaining} restante${remaining !== 1 ? 's' : ''}</strong>`;
+  const isUnlimited = (ad.maxRenewals || FREE_MAX_RENEWALS) >= 999999;
+  const renewalText = isUnlimited
+    ? `🔄 Renovaciones: ${used} usadas — <strong>ilimitadas</strong>`
+    : `🔄 Renovaciones: ${used} de ${ad.maxRenewals || FREE_MAX_RENEWALS} usadas — <strong>${remaining} restante${remaining !== 1 ? 's' : ''}</strong>`;
 
   return `
     <div class="renewal-info">

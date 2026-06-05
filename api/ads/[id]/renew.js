@@ -2,9 +2,9 @@ const { sql } = require('../../../lib/db');
 const { authMiddleware } = require('../../../lib/auth');
 const { cors } = require('../../../lib/cors');
 
-const FREE_DAYS = 15;
+const FREE_DAYS = 30;
 const PREMIUM_DAYS = 30;
-const FREE_MAX_RENEWALS = 3;
+const FREE_MAX_RENEWALS = 999999;
 
 module.exports = async function handler(req, res) {
   if (cors(req, res)) return;

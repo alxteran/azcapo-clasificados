@@ -3,8 +3,8 @@
    ============================================ */
 
 /* ---- Vigencia Constants ---- */
-const FREE_DAYS = 15;
-const FREE_MAX_RENEWALS = 3;
+const FREE_DAYS = 30;
+const FREE_MAX_RENEWALS = 999999;
 const DAY_MS = 86400000; // 1 day in milliseconds
 
 const CATEGORIES = [
@@ -49,6 +49,20 @@ const CATEGORIES = [
       { id: 'muebles-recamara', name: 'Recámara' },
       { id: 'muebles-cocina', name: 'Cocina' },
       { id: 'muebles-decoracion', name: 'Decoración' },
+    ]},
+  { id: 'vehiculos', name: 'Vehículos', emoji: '🚗',
+    subs: [
+      { id: 'vehiculos-autos', name: 'Autos' },
+      { id: 'vehiculos-camionetas', name: 'Camionetas' },
+      { id: 'vehiculos-electricos', name: 'Eléctricos' },
+      { id: 'vehiculos-otros', name: 'Otros' },
+    ]},
+  { id: 'inmuebles', name: 'Inmuebles (Venta/Renta)', emoji: '🏠',
+    subs: [
+      { id: 'inmuebles-casas', name: 'Casas' },
+      { id: 'inmuebles-departamentos', name: 'Departamentos' },
+      { id: 'inmuebles-terrenos', name: 'Terrenos' },
+      { id: 'inmuebles-bodegas', name: 'Bodegas' },
     ]},
   { id: 'cursos', name: 'Cursos y Educación', emoji: '📚',
     subs: [
@@ -142,6 +156,8 @@ function normalizeAd(ad) {
     maxRenewals: ad.max_renewals != null ? ad.max_renewals : (ad.type === 'premium' ? 999999 : FREE_MAX_RENEWALS),
     suspended: ad.status === 'suspended',
     createdAt: ad.created_at ? new Date(ad.created_at).getTime() : Date.now(),
+    latitude: ad.latitude != null ? Number(ad.latitude) : null,
+    longitude: ad.longitude != null ? Number(ad.longitude) : null,
     ownerEmail: ad.owner_email || '',
     _dbId: ad.id, // internal DB id
   };

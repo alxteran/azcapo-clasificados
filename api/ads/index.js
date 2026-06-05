@@ -2,8 +2,8 @@ const { sql } = require('../../lib/db');
 const { authMiddleware } = require('../../lib/auth');
 const { cors } = require('../../lib/cors');
 
-const FREE_DAYS = 15;
-const FREE_MAX_RENEWALS = 3;
+const FREE_DAYS = 30;
+const FREE_MAX_RENEWALS = 999999;
 
 module.exports = async function handler(req, res) {
   if (cors(req, res)) return;
@@ -71,16 +71,18 @@ async function handleCreate(req, res) {
       return res.status(401).json({ success: false, message: 'Debes iniciar sesión para publicar.' });
     }
 
-    const { title, description, category, price, location, images, contact } = req.body || {};
+    const { title, description, category, price, location, images, contact, latitude, longitude } = req.body || {};
 
     if (!title || !description || !category || !location) {
       return res.status(400).json({ success: false, message: 'Todos los campos obligatorios deben completarse.' });
     }
 
     const publicId = 'ad_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    const lat = latitude != null ? Number(latitude) : null;
+    const lng = longitude != null ? Number(longitude) : null;
 
     const result = await sql`
-      INSERT INTO ads (public_id, owner_id, title, description, category, price, location, type, status, images, contact, featured, expires_at, renewal_count, max_renewals)
+      INSERT INTO ads (public_id, owner_id, title, description, category, price, location, type, status, images, contact, featured, expires_at, renewal_count, max_renewals, latitude, longitude)
       VALUES (
         ${publicId}, ${user.userId}, ${title}, ${description}, ${category},
         ${Number(price) || 0}, ${location},
@@ -91,7 +93,9 @@ async function handleCreate(req, res) {
         ${false},
         ${new Date(Date.now() + FREE_DAYS * 86400000).toISOString()},
         ${0},
-        ${FREE_MAX_RENEWALS}
+        ${FREE_MAX_RENEWALS},
+        ${lat},
+        ${lng}
       )
       RETURNING *
     `;
