@@ -1300,11 +1300,22 @@ async function loadBlogPreview() {
  * @param {number|null} existingLat - Pre-existing latitude (for edit mode)
  * @param {number|null} existingLng - Pre-existing longitude (for edit mode)
  */
-function initAgMap(existingLat, existingLng) {
+function initAgMap(existingLat, existingLng, _retries) {
+  const retryCount = _retries || 0;
+  const maxRetries = 20; // 10 seconds max
+
   // Bail if Google Maps API hasn't loaded yet
-  if (typeof google === 'undefined' || !google.maps) {
-    console.warn('Google Maps API not loaded yet, retrying...');
-    setTimeout(() => initAgMap(existingLat, existingLng), 500);
+  if (typeof google === 'undefined' || !google.maps || !window.__gmapsLoaded) {
+    if (retryCount >= maxRetries) {
+      console.error('Google Maps API failed to load after ' + maxRetries + ' retries.');
+      const mapDiv = document.getElementById('ag-map-canvas');
+      if (mapDiv) {
+        mapDiv.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:var(--text-sm);text-align:center;padding:var(--space-4);">⚠️ No se pudo cargar el mapa. Verifica tu conexión a internet y recarga la página.</div>';
+      }
+      return;
+    }
+    console.warn('Google Maps API not loaded yet, retry ' + (retryCount + 1) + '/' + maxRetries + '...');
+    setTimeout(() => initAgMap(existingLat, existingLng, retryCount + 1), 500);
     return;
   }
 
@@ -1469,9 +1480,11 @@ function initAgMap(existingLat, existingLng) {
  * @param {number} lat
  * @param {number} lng
  */
-function initDetailMap(canvasId, lat, lng) {
-  if (typeof google === 'undefined' || !google.maps) {
-    setTimeout(() => initDetailMap(canvasId, lat, lng), 500);
+function initDetailMap(canvasId, lat, lng, _retries) {
+  const retryCount = _retries || 0;
+  if (typeof google === 'undefined' || !google.maps || !window.__gmapsLoaded) {
+    if (retryCount >= 20) return;
+    setTimeout(() => initDetailMap(canvasId, lat, lng, retryCount + 1), 500);
     return;
   }
 
