@@ -1291,36 +1291,33 @@ async function loadBlogPreview() {
 }
 
 /* ============================================
-   MAP WIDGET — Google Maps Location Picker
+   MAP WIDGET — Leaflet + OpenStreetMap Location Picker
    ============================================ */
 
 /**
- * Initialize the Google Maps location picker widget.
+ * Initialize the Leaflet location picker widget.
  * Called after the publish page or edit modal renders.
  * @param {number|null} existingLat - Pre-existing latitude (for edit mode)
  * @param {number|null} existingLng - Pre-existing longitude (for edit mode)
  */
-function initAgMap(existingLat, existingLng, _retries) {
-  const retryCount = _retries || 0;
-  const maxRetries = 20; // 10 seconds max
-
-  // Bail if Google Maps API hasn't loaded yet
-  if (typeof google === 'undefined' || !google.maps || !window.__gmapsLoaded) {
-    if (retryCount >= maxRetries) {
-      console.error('Google Maps API failed to load after ' + maxRetries + ' retries.');
-      const mapDiv = document.getElementById('ag-map-canvas');
-      if (mapDiv) {
-        mapDiv.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:var(--text-sm);text-align:center;padding:var(--space-4);">⚠️ No se pudo cargar el mapa. Verifica tu conexión a internet y recarga la página.</div>';
-      }
-      return;
+function initAgMap(existingLat, existingLng) {
+  if (typeof L === 'undefined') {
+    console.error('Leaflet not loaded.');
+    const mapDiv = document.getElementById('ag-map-canvas');
+    if (mapDiv) {
+      mapDiv.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:var(--text-sm);text-align:center;padding:var(--space-4);">⚠️ No se pudo cargar el mapa. Recarga la página.</div>';
     }
-    console.warn('Google Maps API not loaded yet, retry ' + (retryCount + 1) + '/' + maxRetries + '...');
-    setTimeout(() => initAgMap(existingLat, existingLng, retryCount + 1), 500);
     return;
   }
 
   const mapDiv = document.getElementById('ag-map-canvas');
-  if (!mapDiv) return; // Widget not in the DOM
+  if (!mapDiv) return;
+
+  // Destroy any previous map instance on this div
+  if (mapDiv._leafletMap) {
+    mapDiv._leafletMap.remove();
+    mapDiv._leafletMap = null;
+  }
 
   const searchInput = document.getElementById('ag-search-input');
   const hiddenLat = document.getElementById('ag-hidden-lat');
@@ -1330,87 +1327,104 @@ function initAgMap(existingLat, existingLng, _retries) {
   const locationTextInput = document.getElementById('ag-location-text');
 
   // Default center: Azcapotzalco
-  const defaultPos = { lat: 19.4833, lng: -99.1833 };
+  const defaultPos = [19.4833, -99.1833];
 
-  // Use existing coordinates if available, otherwise default
   const initialPos = (existingLat && existingLng)
-    ? { lat: existingLat, lng: existingLng }
+    ? [existingLat, existingLng]
     : defaultPos;
 
-  // Create map
-  const map = new google.maps.Map(mapDiv, {
+  // Create map with dark tile layer
+  const map = L.map(mapDiv, {
     center: initialPos,
     zoom: 15,
-    mapTypeControl: false,
-    streetViewControl: false,
-    fullscreenControl: true,
-    styles: [
-      { elementType: 'geometry', stylers: [{ color: '#1d1d2e' }] },
-      { elementType: 'labels.text.stroke', stylers: [{ color: '#1d1d2e' }] },
-      { elementType: 'labels.text.fill', stylers: [{ color: '#8a8a9e' }] },
-      { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2c2c40' }] },
-      { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#9ca5b3' }] },
-      { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1626' }] },
-      { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#6a6a80' }] },
-      { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#1a2a1a' }] },
-      { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#22223a' }] },
-    ]
+    zoomControl: true,
   });
+
+  // Store reference for cleanup
+  mapDiv._leafletMap = map;
+
+  // Dark-themed tile layer (CartoDB Dark Matter)
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 19
+  }).addTo(map);
 
   // Create draggable marker
-  const marker = new google.maps.Marker({
-    position: initialPos,
-    map: map,
+  const marker = L.marker(initialPos, {
     draggable: true,
-    title: 'Arrástrame a la ubicación exacta',
-    animation: google.maps.Animation.DROP
-  });
+    autoPan: true
+  }).addTo(map);
 
-  // Places Autocomplete
+  // Fix map rendering in hidden/delayed containers
+  setTimeout(() => map.invalidateSize(), 300);
+
+  // Search functionality using Nominatim (free geocoding)
   if (searchInput) {
-    const autocomplete = new google.maps.places.Autocomplete(searchInput, {
-      componentRestrictions: { country: 'mx' },
-      fields: ['geometry', 'formatted_address']
-    });
-    autocomplete.bindTo('bounds', map);
-
-    autocomplete.addListener('place_changed', function() {
-      const place = autocomplete.getPlace();
-      if (!place.geometry) return;
-
-      map.panTo(place.geometry.location);
-      map.setZoom(16);
-      marker.setPosition(place.geometry.location);
-      updateLocationData(place.geometry.location);
-    });
-  }
-
-  // Update hidden fields, address display, location text, and distance
-  function updateLocationData(location) {
-    const lat = location.lat();
-    const lng = location.lng();
-
-    if (hiddenLat) hiddenLat.value = lat;
-    if (hiddenLng) hiddenLng.value = lng;
-
-    // Reverse geocode to get street address
-    const geocoder = new google.maps.Geocoder();
-    geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-      if (status === 'OK' && results[0]) {
-        const addr = results[0].formatted_address;
-        if (addressDisplay) addressDisplay.textContent = addr;
-        // Also fill the main location text field
-        if (locationTextInput) locationTextInput.value = addr;
+    let searchTimeout = null;
+    searchInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        const query = searchInput.value.trim();
+        if (!query) return;
+        searchLocation(query);
       }
     });
 
+    // Debounced search on input
+    searchInput.addEventListener('input', function() {
+      clearTimeout(searchTimeout);
+      const query = searchInput.value.trim();
+      if (query.length < 3) return;
+      searchTimeout = setTimeout(() => searchLocation(query), 600);
+    });
+
+    function searchLocation(query) {
+      fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(query + ', México') + '&limit=1&addressdetails=1')
+        .then(r => r.json())
+        .then(results => {
+          if (results.length > 0) {
+            const r = results[0];
+            const lat = parseFloat(r.lat);
+            const lng = parseFloat(r.lon);
+            map.setView([lat, lng], 16);
+            marker.setLatLng([lat, lng]);
+            updateLocationData(lat, lng, r.display_name);
+          }
+        })
+        .catch(err => console.warn('Geocode search failed:', err));
+    }
+  }
+
+  // Update hidden fields, address display, location text, and distance
+  function updateLocationData(lat, lng, address) {
+    if (hiddenLat) hiddenLat.value = lat;
+    if (hiddenLng) hiddenLng.value = lng;
+
+    if (address) {
+      if (addressDisplay) addressDisplay.textContent = address;
+      if (locationTextInput) locationTextInput.value = address;
+    } else {
+      // Reverse geocode using Nominatim
+      fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lng + '&addressdetails=1')
+        .then(r => r.json())
+        .then(data => {
+          if (data && data.display_name) {
+            if (addressDisplay) addressDisplay.textContent = data.display_name;
+            if (locationTextInput) locationTextInput.value = data.display_name;
+          }
+        })
+        .catch(err => console.warn('Reverse geocode failed:', err));
+    }
+
     // Calculate distance from Azcapotzalco center (Haversine)
-    calculateDistance(lat, lng, defaultPos.lat, defaultPos.lng);
+    calculateDistance(lat, lng, defaultPos[0], defaultPos[1]);
   }
 
   // Haversine formula
   function calculateDistance(lat1, lng1, lat2, lng2) {
-    const R = 6371; // Earth radius km
+    const R = 6371;
     const dLat = (lat1 - lat2) * Math.PI / 180;
     const dLng = (lng1 - lng2) * Math.PI / 180;
     const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
@@ -1422,14 +1436,15 @@ function initAgMap(existingLat, existingLng, _retries) {
   }
 
   // Event: marker drag end
-  marker.addListener('dragend', function() {
-    updateLocationData(marker.getPosition());
+  marker.on('dragend', function() {
+    const pos = marker.getLatLng();
+    updateLocationData(pos.lat, pos.lng);
   });
 
   // Event: click on map to move marker
-  map.addListener('click', function(e) {
-    marker.setPosition(e.latLng);
-    updateLocationData(e.latLng);
+  map.on('click', function(e) {
+    marker.setLatLng(e.latlng);
+    updateLocationData(e.latlng.lat, e.latlng.lng);
   });
 
   // Event: geolocation button
@@ -1446,14 +1461,11 @@ function initAgMap(existingLat, existingLng, _retries) {
 
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          const pos = new google.maps.LatLng(
-            position.coords.latitude,
-            position.coords.longitude
-          );
-          map.setCenter(pos);
-          map.setZoom(16);
-          marker.setPosition(pos);
-          updateLocationData(pos);
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          map.setView([lat, lng], 16);
+          marker.setLatLng([lat, lng]);
+          updateLocationData(lat, lng);
 
           geoBtn.disabled = false;
           geoBtn.textContent = '📍 Usar mi ubicación';
@@ -1470,7 +1482,7 @@ function initAgMap(existingLat, existingLng, _retries) {
 
   // If we have existing coords, update the display
   if (existingLat && existingLng) {
-    updateLocationData(new google.maps.LatLng(existingLat, existingLng));
+    updateLocationData(existingLat, existingLng);
   }
 }
 
@@ -1480,40 +1492,32 @@ function initAgMap(existingLat, existingLng, _retries) {
  * @param {number} lat
  * @param {number} lng
  */
-function initDetailMap(canvasId, lat, lng, _retries) {
-  const retryCount = _retries || 0;
-  if (typeof google === 'undefined' || !google.maps || !window.__gmapsLoaded) {
-    if (retryCount >= 20) return;
-    setTimeout(() => initDetailMap(canvasId, lat, lng, retryCount + 1), 500);
-    return;
-  }
+function initDetailMap(canvasId, lat, lng) {
+  if (typeof L === 'undefined') return;
 
   const mapDiv = document.getElementById(canvasId);
   if (!mapDiv) return;
 
-  const pos = { lat, lng };
-  const map = new google.maps.Map(mapDiv, {
+  const pos = [lat, lng];
+  const map = L.map(mapDiv, {
     center: pos,
     zoom: 15,
-    mapTypeControl: false,
-    streetViewControl: false,
     zoomControl: true,
-    fullscreenControl: false,
-    draggable: false,
-    scrollwheel: false,
-    styles: [
-      { elementType: 'geometry', stylers: [{ color: '#1d1d2e' }] },
-      { elementType: 'labels.text.stroke', stylers: [{ color: '#1d1d2e' }] },
-      { elementType: 'labels.text.fill', stylers: [{ color: '#8a8a9e' }] },
-      { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2c2c40' }] },
-      { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1626' }] },
-      { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#1a2a1a' }] },
-    ]
+    dragging: false,
+    scrollWheelZoom: false,
+    doubleClickZoom: false,
+    touchZoom: false,
   });
 
-  new google.maps.Marker({
-    position: pos,
-    map: map,
-    title: 'Ubicación del artículo'
-  });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 19
+  }).addTo(map);
+
+  L.marker(pos).addTo(map);
+
+  // Fix rendering in delayed containers
+  setTimeout(() => map.invalidateSize(), 300);
 }
+
