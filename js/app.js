@@ -90,7 +90,11 @@ function router() {
     }
     html = renderAdminPage();
     updateActiveNav('');
-    setTimeout(() => loadAdminVideos(), 100);
+    setTimeout(() => { loadAdminVideos(); loadAdminMessages(); }, 100);
+  } else if (path === '/contact') {
+    html = renderContactPage();
+    updateActiveNav('contact');
+    setTimeout(() => initContactWordCounter(), 50);
   } else if (path === '/auth') {
     html = renderAuthPage(authMode);
     updateActiveNav('auth');
@@ -219,6 +223,9 @@ function renderHeader() {
         <div class="header-actions">
           <a class="header-nav-link" href="/blog" style="color:var(--text-secondary)" title="Blog de la comunidad">
             📝 <span class="btn-text">Blog</span>
+          </a>
+          <a class="header-nav-link" data-nav="contact" href="#/contact" onclick="return false" style="color:var(--text-secondary)" title="Buzón de comentarios">
+            📬 <span class="btn-text">Contacto</span>
           </a>
           ${isLoggedIn ? `
             <a class="header-nav-link" data-nav="my-ads" href="#/my-ads" onclick="return false" style="color:var(--text-secondary)">
@@ -1414,6 +1421,132 @@ async function adminSaveVideos() {
 
   if (btn) { btn.disabled = false; btn.textContent = '💾 Guardar cambios'; }
   setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+}
+
+/* ---- Contact Form (Buzón de Comentarios) ---- */
+function initContactWordCounter() {
+  const textarea = document.getElementById('contact-message');
+  const counter = document.getElementById('contact-word-count');
+  if (!textarea || !counter) return;
+
+  textarea.addEventListener('input', function() {
+    const text = this.value.trim();
+    const words = text.split(/\s+/).filter(w => w.length > 0);
+    const count = text === '' ? 0 : words.length;
+    counter.textContent = count + ' / 1000 palabras';
+
+    if (count > 1000) {
+      counter.classList.add('limit-reached');
+    } else {
+      counter.classList.remove('limit-reached');
+    }
+  });
+}
+
+async function handleContactSubmit(e) {
+  e.preventDefault();
+  const emailInput = document.getElementById('contact-email');
+  const msgInput = document.getElementById('contact-message');
+  const btn = document.getElementById('contact-submit-btn');
+  if (!emailInput || !msgInput) return;
+
+  const email = emailInput.value.trim();
+  const message = msgInput.value.trim();
+
+  if (!email || !message) {
+    showToast('Completa todos los campos obligatorios.', 'error');
+    return;
+  }
+
+  // Validate word count
+  const words = message.split(/\s+/).filter(w => w.length > 0);
+  if (words.length > 1000) {
+    showToast('El comentario excede las 1000 palabras. Por favor, acórtalo.', 'error');
+    return;
+  }
+
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Enviando...'; }
+
+  try {
+    const res = await fetch('/api/contact', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, message }),
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      // Show success state
+      const form = document.getElementById('contact-form');
+      const success = document.getElementById('contact-success');
+      if (form) form.style.display = 'none';
+      if (success) success.style.display = 'block';
+      showToast('¡Mensaje enviado con éxito!', 'success');
+    } else {
+      showToast(data.error || 'Error al enviar el mensaje.', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '📩 Enviar Comentario'; }
+    }
+  } catch(err) {
+    showToast('Error de conexión. Intenta de nuevo.', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '📩 Enviar Comentario'; }
+  }
+}
+
+/* ---- Admin: Contact Messages ---- */
+async function loadAdminMessages() {
+  const list = document.getElementById('admin-messages-list');
+  if (!list) return;
+
+  try {
+    const data = await apiRequest('/api/contact');
+    const messages = (data.success && Array.isArray(data.messages)) ? data.messages : [];
+    adminRenderMessages(messages);
+  } catch(e) {
+    if (list) list.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:var(--space-4)">Error al cargar mensajes.</div>';
+  }
+}
+
+function adminRenderMessages(messages) {
+  const list = document.getElementById('admin-messages-list');
+  if (!list) return;
+
+  if (messages.length === 0) {
+    list.innerHTML = `
+      <div style="text-align:center;padding:var(--space-6) 0;color:var(--text-muted);border:2px dashed var(--glass-border);border-radius:var(--radius-xl)">
+        <div style="font-size:2rem;margin-bottom:var(--space-2)">📭</div>
+        <p style="font-size:var(--text-sm)">No hay mensajes nuevos.</p>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = messages.map(m => {
+    const date = new Date(m.created_at).toLocaleDateString('es-MX', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    const preview = m.message.length > 120 ? m.message.slice(0, 120) + '…' : m.message;
+    return `
+      <div style="padding:var(--space-4);background:var(--bg-secondary);border:1px solid var(--glass-border);border-radius:var(--radius-lg);margin-bottom:var(--space-3)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-2);flex-wrap:wrap;gap:var(--space-2)">
+          <div style="font-weight:600;font-size:var(--text-sm);color:var(--accent)">${escapeHtml(m.email)}</div>
+          <div style="display:flex;align-items:center;gap:var(--space-2)">
+            <span style="font-size:var(--text-xs);color:var(--text-muted)">${date}</span>
+            <button onclick="adminDeleteMessage(${m.id})" class="btn" style="padding:2px 8px;color:#e53935;font-size:0.9rem" title="Eliminar">✕</button>
+          </div>
+        </div>
+        <div style="font-size:var(--text-sm);color:var(--text-secondary);line-height:1.5;white-space:pre-wrap">${escapeHtml(preview)}</div>
+      </div>`;
+  }).join('');
+}
+
+async function adminDeleteMessage(id) {
+  try {
+    await apiRequest('/api/contact', {
+      method: 'DELETE',
+      body: JSON.stringify({ id }),
+    });
+    loadAdminMessages();
+    showToast('Mensaje eliminado.', 'success');
+  } catch(e) {
+    showToast('Error al eliminar.', 'error');
+  }
 }
 
 /* ---- YouTube Video Carousel (Home Page) ---- */

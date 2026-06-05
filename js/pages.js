@@ -243,6 +243,69 @@ function renderAdminPage() {
           <button class="btn btn-primary" id="admin-save-btn" onclick="adminSaveVideos()">💾 Guardar cambios</button>
         </div>
       </div>
+
+      <!-- Contact Messages Section -->
+      <div class="admin-card" style="margin-top:var(--space-6)">
+        <h2 style="font-family:var(--font-display);font-size:var(--text-lg);margin-bottom:var(--space-2)">📬 Mensajes del Buzón</h2>
+        <p style="color:var(--text-muted);font-size:var(--text-sm);margin-bottom:var(--space-5)">
+          Mensajes enviados desde la página de Contacto. Los más recientes aparecen primero.
+        </p>
+        <div id="admin-messages-list">
+          <div style="text-align:center;padding:var(--space-6) 0;color:var(--text-muted)">Cargando mensajes…</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ---- Contact / Buzón de Comentarios ---- */
+function renderContactPage() {
+  return `
+    <div class="container" style="max-width:680px;padding-top:var(--space-8);padding-bottom:var(--space-12)">
+      <div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-6)">
+        <a href="#" onclick="navigateTo('/');return false;" style="color:var(--text-muted);text-decoration:none;font-size:1.2rem">← Inicio</a>
+      </div>
+
+      <div class="contact-card">
+        <div class="contact-header">
+          <span class="contact-icon">📬</span>
+          <div>
+            <h1 class="contact-title">Buzón de Comentarios</h1>
+            <p class="contact-subtitle">Tu opinión es importante. Déjanos tus sugerencias, quejas o comentarios.</p>
+          </div>
+        </div>
+
+        <form id="contact-form" onsubmit="handleContactSubmit(event)">
+          <!-- Email -->
+          <div class="form-group">
+            <label class="form-label" for="contact-email">
+              Correo Electrónico <span style="color:var(--accent);font-size:var(--text-xs)">* Obligatorio</span>
+            </label>
+            <input type="email" id="contact-email" class="input" placeholder="ejemplo@correo.com" required autocomplete="email">
+          </div>
+
+          <!-- Comentario -->
+          <div class="form-group">
+            <label class="form-label" for="contact-message">
+              Comentario <span style="color:var(--accent);font-size:var(--text-xs)">* Obligatorio (máx. 1000 palabras)</span>
+            </label>
+            <textarea id="contact-message" class="input contact-textarea" placeholder="Escribe aquí tu mensaje, sugerencia o comentario..." required></textarea>
+            <div id="contact-word-count" class="contact-word-counter">0 / 1000 palabras</div>
+          </div>
+
+          <!-- Submit -->
+          <button type="submit" class="btn btn-primary contact-submit-btn" id="contact-submit-btn">
+            📩 Enviar Comentario
+          </button>
+        </form>
+
+        <div id="contact-success" style="display:none;text-align:center;padding:var(--space-8) 0">
+          <div style="font-size:3rem;margin-bottom:var(--space-3)">✅</div>
+          <h2 style="font-family:var(--font-display);font-size:var(--text-xl);margin-bottom:var(--space-2)">¡Mensaje enviado!</h2>
+          <p style="color:var(--text-muted);margin-bottom:var(--space-5)">Gracias por tu comentario. Lo revisaremos a la brevedad.</p>
+          <button class="btn btn-secondary" onclick="navigateTo('/')">← Volver al inicio</button>
+        </div>
+      </div>
     </div>
   `;
 }
