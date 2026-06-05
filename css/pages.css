@@ -998,11 +998,12 @@
    CONTACT / BUZÓN DE COMENTARIOS
    ============================================ */
 .contact-card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--glass-border);
+  background: var(--bg-surface);
+  border: 2px solid #d0d0d0;
   border-radius: var(--radius-2xl);
   padding: var(--space-8);
-  border-top: 4px solid var(--accent);
+  border-top: 4px solid var(--accent-start);
+  box-shadow: var(--shadow-md);
 }
 
 .contact-header {
@@ -1010,6 +1011,8 @@
   align-items: flex-start;
   gap: var(--space-4);
   margin-bottom: var(--space-6);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid #ddd;
 }
 
 .contact-icon {
@@ -1028,17 +1031,51 @@
   font-size: var(--text-sm);
 }
 
+/* Form fields inside contact */
+.contact-card .form-group {
+  margin-bottom: var(--space-5);
+}
+
+.contact-card .form-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.contact-card .input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 2px solid #ccc;
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.contact-card .input::placeholder {
+  color: #aaa;
+}
+
+.contact-card .input:focus {
+  border-color: var(--accent-start);
+  box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.15);
+  outline: none;
+}
+
 .contact-textarea {
   resize: vertical;
-  min-height: 200px;
-  line-height: 1.6;
+  min-height: 220px;
+  line-height: 1.7;
 }
 
 .contact-word-counter {
   text-align: right;
   font-size: var(--text-xs);
   color: var(--text-muted);
-  margin-top: var(--space-1);
+  margin-top: var(--space-2);
   transition: color 0.2s ease;
 }
 
@@ -1051,7 +1088,8 @@
   width: 100%;
   padding: var(--space-4);
   font-size: var(--text-lg) !important;
-  margin-top: var(--space-3);
+  margin-top: var(--space-4);
+  border-radius: var(--radius-lg);
 }
 
 @media (max-width: 600px) {
