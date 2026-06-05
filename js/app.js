@@ -84,6 +84,13 @@ function router() {
     updateActiveNav('my-ads');
     // Fetch my ads from API and re-render
     loadMyAds();
+  } else if (path === '/admin') {
+    if (!AuthStore.isLoggedIn() || AuthStore.getCurrentEmail() !== 'alxteran@gmail.com') {
+      navigateTo('/'); return;
+    }
+    html = renderAdminPage();
+    updateActiveNav('');
+    setTimeout(() => loadAdminVideos(), 100);
   } else if (path === '/auth') {
     html = renderAuthPage(authMode);
     updateActiveNav('auth');
@@ -119,7 +126,7 @@ function router() {
     heroCarousel.stop();
     setTimeout(() => heroCarousel.init(), 0);
     setTimeout(() => loadBlogPreview(), 200);
-    setTimeout(() => initYtCarousel(), 300);
+    setTimeout(() => loadYtVideos(), 300);
   }
 
   // If on auth page, generate and draw CAPTCHA
@@ -217,6 +224,11 @@ function renderHeader() {
             <a class="header-nav-link" data-nav="my-ads" href="#/my-ads" onclick="return false" style="color:var(--text-secondary)">
               📌 <span class="btn-text">Mis Anuncios</span>
             </a>
+            ${email === 'alxteran@gmail.com' ? `
+            <a class="header-nav-link" data-nav="admin" href="#/admin" onclick="return false" style="color:var(--text-secondary)" title="Panel de Administración">
+              ⚙️ <span class="btn-text">Admin</span>
+            </a>
+            ` : ''}
             <div class="header-user-info">
               <span class="header-user-email">👤 <span class="btn-text">${escapeHtml(email)}</span></span>
               <button class="btn btn-ghost btn-sm" onclick="handleLogout()" title="Cerrar sesión">
@@ -1291,8 +1303,186 @@ async function loadBlogPreview() {
   }
 }
 
+/* ---- Admin: Video Management ---- */
+let _adminVideos = [];
+
+async function loadAdminVideos() {
+  const list = document.getElementById('admin-video-list');
+  if (!list) return;
+
+  try {
+    const data = await apiRequest('/api/settings/videos');
+    _adminVideos = (data.success && Array.isArray(data.videos)) ? data.videos : [];
+  } catch(e) {
+    _adminVideos = [];
+  }
+
+  adminRenderVideoList();
+}
+
+function adminRenderVideoList() {
+  const list = document.getElementById('admin-video-list');
+  if (!list) return;
+
+  if (_adminVideos.length === 0) {
+    list.innerHTML = `
+      <div style="text-align:center;padding:var(--space-6) 0;color:var(--text-muted);border:2px dashed var(--glass-border);border-radius:var(--radius-xl)">
+        <div style="font-size:2rem;margin-bottom:var(--space-2)">📭</div>
+        <p style="font-size:var(--text-sm)">No hay videos configurados. Agrega uno arriba.</p>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = _adminVideos.map((v, i) => {
+    const vid = getYouTubeId(v.url);
+    const thumb = vid ? `https://img.youtube.com/vi/${vid}/mqdefault.jpg` : '';
+    return `
+      <div class="admin-video-row" style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3);background:var(--bg-secondary);border:1px solid var(--glass-border);border-radius:var(--radius-lg);margin-bottom:var(--space-3)">
+        ${thumb ? `<img src="${thumb}" alt="" style="width:120px;height:68px;object-fit:cover;border-radius:var(--radius-md);flex-shrink:0">` : ''}
+        <div style="flex:1;min-width:0">
+          <input type="text" value="${escapeHtml(v.title || '')}" class="input" placeholder="Título del video"
+            style="font-size:var(--text-sm);margin-bottom:4px"
+            onchange="_adminVideos[${i}].title = this.value">
+          <div style="font-size:var(--text-xs);color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(v.url)}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0">
+          <button onclick="adminMoveVideo(${i}, -1)" class="btn" style="padding:2px 8px;font-size:0.7rem" ${i === 0 ? 'disabled' : ''}>▲</button>
+          <button onclick="adminMoveVideo(${i}, 1)" class="btn" style="padding:2px 8px;font-size:0.7rem" ${i === _adminVideos.length - 1 ? 'disabled' : ''}>▼</button>
+        </div>
+        <button onclick="adminRemoveVideo(${i})" class="btn" style="padding:4px 10px;color:#e53935;font-size:1.1rem" title="Eliminar">✕</button>
+      </div>`;
+  }).join('');
+}
+
+function adminAddVideo() {
+  const urlInput = document.getElementById('admin-new-video-url');
+  const titleInput = document.getElementById('admin-new-video-title');
+  if (!urlInput) return;
+
+  const url = urlInput.value.trim();
+  const title = titleInput ? titleInput.value.trim() : '';
+
+  if (!url) { showToast('Pega una URL de YouTube', 'error'); return; }
+  const vid = getYouTubeId(url);
+  if (!vid) { showToast('URL de YouTube no válida. Usa formato: https://youtu.be/... o https://youtube.com/watch?v=...', 'error'); return; }
+
+  _adminVideos.push({ url, title: title || 'Video ' + (_adminVideos.length + 1) });
+  urlInput.value = '';
+  if (titleInput) titleInput.value = '';
+
+  adminRenderVideoList();
+  showToast('Video agregado. No olvides guardar los cambios.', 'success');
+}
+
+function adminRemoveVideo(index) {
+  _adminVideos.splice(index, 1);
+  adminRenderVideoList();
+}
+
+function adminMoveVideo(index, direction) {
+  const newIndex = index + direction;
+  if (newIndex < 0 || newIndex >= _adminVideos.length) return;
+  [_adminVideos[index], _adminVideos[newIndex]] = [_adminVideos[newIndex], _adminVideos[index]];
+  adminRenderVideoList();
+}
+
+async function adminSaveVideos() {
+  const btn = document.getElementById('admin-save-btn');
+  const status = document.getElementById('admin-save-status');
+
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Guardando...'; }
+
+  try {
+    const data = await apiRequest('/api/settings/videos', {
+      method: 'POST',
+      body: JSON.stringify({ videos: _adminVideos }),
+    });
+
+    if (data.success) {
+      _adminVideos = data.videos || _adminVideos;
+      adminRenderVideoList();
+      if (status) { status.textContent = '✅ Guardado'; status.style.color = '#4caf50'; }
+      showToast('Videos actualizados correctamente', 'success');
+    } else {
+      showToast(data.error || 'Error al guardar', 'error');
+      if (status) { status.textContent = '❌ Error'; status.style.color = '#e53935'; }
+    }
+  } catch(e) {
+    showToast('Error de conexión al guardar', 'error');
+    if (status) { status.textContent = '❌ Error'; status.style.color = '#e53935'; }
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = '💾 Guardar cambios'; }
+  setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+}
+
 /* ---- YouTube Video Carousel (Home Page) ---- */
 let ytCarouselTimer = null;
+
+/** Fetch videos from API, render carousel, then init auto-play */
+async function loadYtVideos() {
+  const container = document.getElementById('yt-carousel-container');
+  const side = document.getElementById('video-side');
+  if (!container) return;
+
+  let videos = [];
+  try {
+    const res = await fetch('/api/settings/videos');
+    const data = await res.json();
+    if (data.success && Array.isArray(data.videos)) videos = data.videos;
+  } catch(e) {
+    console.warn('Failed to load videos from API, using fallback:', e);
+    // Fallback to hardcoded array if it exists
+    if (typeof YOUTUBE_VIDEOS !== 'undefined') videos = YOUTUBE_VIDEOS;
+  }
+
+  // Filter to valid videos
+  videos = videos.filter(v => v.url && getYouTubeId(v.url));
+
+  if (videos.length === 0) {
+    // Hide video section if no videos
+    if (side) side.style.display = 'none';
+    return;
+  }
+
+  // Render carousel HTML
+  const slidesHtml = videos.map((v, i) => {
+    const vid = getYouTubeId(v.url);
+    return `
+      <div class="yt-carousel-slide ${i === 0 ? 'active' : ''}" data-index="${i}">
+        <iframe
+          src="https://www.youtube.com/embed/${vid}?rel=0&modestbranding=1"
+          title="${escapeHtml(v.title || 'Video')}"
+          frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen
+          loading="lazy"
+        ></iframe>
+      </div>`;
+  }).join('');
+
+  const dotsHtml = videos.length > 1 ? `
+    <div class="yt-carousel-controls">
+      <button class="yt-carousel-arrow yt-arrow-prev" id="yt-prev" aria-label="Video anterior">‹</button>
+      <div class="yt-carousel-dots" id="yt-dots">
+        ${videos.map((_, i) => `<button class="yt-dot ${i === 0 ? 'active' : ''}" data-index="${i}" aria-label="Video ${i+1}"></button>`).join('')}
+      </div>
+      <button class="yt-carousel-arrow yt-arrow-next" id="yt-next" aria-label="Siguiente video">›</button>
+    </div>
+    <div class="yt-progress-bar" id="yt-progress"></div>
+  ` : '';
+
+  container.innerHTML = `
+    <div class="yt-carousel" id="yt-carousel">
+      <div class="yt-carousel-viewport">
+        <div class="yt-carousel-track" id="yt-carousel-track">${slidesHtml}</div>
+      </div>
+      ${dotsHtml}
+    </div>`;
+
+  // Init auto-play
+  initYtCarousel();
+}
 
 function initYtCarousel() {
   const track = document.getElementById('yt-carousel-track');
@@ -1310,7 +1500,7 @@ function initYtCarousel() {
   let current  = 0;
   const INTERVAL = 5000; // 5 seconds
   let elapsed  = 0;
-  const TICK   = 50; // progress update interval
+  const TICK   = 50;
 
   function goTo(idx) {
     current = ((idx % total) + total) % total;
@@ -1322,7 +1512,6 @@ function initYtCarousel() {
   function nextSlide() { goTo(current + 1); }
   function prevSlide() { goTo(current - 1); }
 
-  // Auto-play with progress bar
   function startAuto() {
     stopAuto();
     elapsed = 0;
@@ -1342,7 +1531,6 @@ function initYtCarousel() {
     if (bar) bar.style.width = '0%';
   }
 
-  // Manual navigation pauses auto for 15s then resumes
   function manualNav(fn) {
     stopAuto();
     fn();

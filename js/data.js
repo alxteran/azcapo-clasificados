@@ -187,19 +187,8 @@ const DEMO_ADS = [
 ];
 
 /* ============================================
-   YOUTUBE VIDEO CAROUSEL — Admin Config
-   ============================================
-   Para agregar o quitar videos, el administrador solo necesita
-   editar esta lista. Soporta URLs en formato:
-     - https://youtu.be/VIDEO_ID
-     - https://www.youtube.com/watch?v=VIDEO_ID
-     - O solo el VIDEO_ID directamente
+   YOUTUBE VIDEO CAROUSEL — URL Parser Utility
    ============================================ */
-const YOUTUBE_VIDEOS = [
-  { url: 'https://youtu.be/5dcH5djqicE?si=AwVadxrGxMR-YjZd', title: 'Video 1' },
-  { url: 'https://youtu.be/5dcH5djqicE?si=AwVadxrGxMR-YjZd', title: 'Video 2' },
-  { url: 'https://youtu.be/5dcH5djqicE?si=AwVadxrGxMR-YjZd', title: 'Video 3' },
-];
 
 /** Extract YouTube video ID from various URL formats */
 function getYouTubeId(url) {

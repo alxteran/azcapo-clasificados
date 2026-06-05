@@ -186,53 +186,61 @@ function renderHomePage() {
                 </div>
               </div>
 
-              <!-- Right: YouTube Video Carousel -->
-              ${YOUTUBE_VIDEOS.length > 0 ? `
-              <div class="video-side">
+              <!-- Right: YouTube Video Carousel (loaded from API) -->
+              <div class="video-side" id="video-side">
                 <div class="section-header">
                   <div>
                     <h2 class="section-title">🎬 Videos</h2>
                     <p class="section-subtitle">Contenido destacado</p>
                   </div>
                 </div>
-                <div class="yt-carousel" id="yt-carousel">
-                  <div class="yt-carousel-viewport">
-                    <div class="yt-carousel-track" id="yt-carousel-track">
-                      ${YOUTUBE_VIDEOS.map((v, i) => {
-                        const vid = getYouTubeId(v.url);
-                        return vid ? `
-                          <div class="yt-carousel-slide ${i === 0 ? 'active' : ''}" data-index="${i}">
-                            <iframe
-                              src="https://www.youtube.com/embed/${vid}?rel=0&modestbranding=1"
-                              title="${escapeHtml(v.title || 'Video')}"
-                              frameborder="0"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowfullscreen
-                              loading="lazy"
-                            ></iframe>
-                          </div>
-                        ` : '';
-                      }).join('')}
-                    </div>
-                  </div>
-                  ${YOUTUBE_VIDEOS.length > 1 ? `
-                  <div class="yt-carousel-controls">
-                    <button class="yt-carousel-arrow yt-arrow-prev" id="yt-prev" aria-label="Video anterior">‹</button>
-                    <div class="yt-carousel-dots" id="yt-dots">
-                      ${YOUTUBE_VIDEOS.map((_, i) => `
-                        <button class="yt-dot ${i === 0 ? 'active' : ''}" data-index="${i}" aria-label="Video ${i+1}"></button>
-                      `).join('')}
-                    </div>
-                    <button class="yt-carousel-arrow yt-arrow-next" id="yt-next" aria-label="Siguiente video">›</button>
-                  </div>
-                  <div class="yt-progress-bar" id="yt-progress"></div>
-                  ` : ''}
+                <div id="yt-carousel-container">
+                  <div style="text-align:center;padding:var(--space-8) 0;color:var(--text-muted);font-size:var(--text-sm)">Cargando videos…</div>
                 </div>
               </div>
-              ` : ''}
 
             </div>
           </section>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ---- Admin Panel ---- */
+function renderAdminPage() {
+  return `
+    <div class="container" style="max-width:700px;padding-top:var(--space-8);padding-bottom:var(--space-12)">
+      <div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-6)">
+        <a href="#" onclick="navigateTo('/');return false;" style="color:var(--text-muted);text-decoration:none;font-size:1.2rem">← Inicio</a>
+      </div>
+
+      <h1 style="font-family:var(--font-display);font-size:var(--text-2xl);margin-bottom:var(--space-2)">⚙️ Panel de Administración</h1>
+      <p style="color:var(--text-muted);margin-bottom:var(--space-8)">Gestiona el contenido del sitio</p>
+
+      <!-- YouTube Videos Section -->
+      <div class="admin-card">
+        <h2 style="font-family:var(--font-display);font-size:var(--text-lg);margin-bottom:var(--space-2)">🎬 Videos de YouTube</h2>
+        <p style="color:var(--text-muted);font-size:var(--text-sm);margin-bottom:var(--space-5)">
+          Los videos aparecen como carrusel junto al blog en la página principal. Se rotan cada 5 segundos.
+        </p>
+
+        <!-- Add new video form -->
+        <div style="display:flex;gap:var(--space-3);margin-bottom:var(--space-5);flex-wrap:wrap">
+          <input type="text" id="admin-new-video-url" class="input" placeholder="Pega la URL de YouTube aquí…" style="flex:1;min-width:200px">
+          <input type="text" id="admin-new-video-title" class="input" placeholder="Título (opcional)" style="width:180px">
+          <button class="btn btn-primary" onclick="adminAddVideo()" style="white-space:nowrap">+ Agregar video</button>
+        </div>
+
+        <!-- Video list -->
+        <div id="admin-video-list">
+          <div style="text-align:center;padding:var(--space-6) 0;color:var(--text-muted)">Cargando videos…</div>
+        </div>
+
+        <!-- Save button -->
+        <div style="display:flex;justify-content:flex-end;gap:var(--space-3);margin-top:var(--space-5)">
+          <span id="admin-save-status" style="color:var(--text-muted);font-size:var(--text-sm);align-self:center"></span>
+          <button class="btn btn-primary" id="admin-save-btn" onclick="adminSaveVideos()">💾 Guardar cambios</button>
         </div>
       </div>
     </div>
