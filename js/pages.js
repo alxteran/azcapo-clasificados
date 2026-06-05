@@ -165,20 +165,72 @@ function renderHomePage() {
             </div>
           </section>
 
-          <!-- Blog Preview Section -->
+          <!-- Blog + YouTube Section -->
           <section class="section blog-preview-section" id="blog-preview-section">
-            <div class="section-header">
-              <div>
-                <h2 class="section-title">📝 Blog de la Comunidad</h2>
-                <p class="section-subtitle">Consejos, guías y noticias locales</p>
+            <div class="blog-video-layout">
+
+              <!-- Left: Blog Preview -->
+              <div class="blog-side">
+                <div class="section-header">
+                  <div>
+                    <h2 class="section-title">📝 Blog de la Comunidad</h2>
+                    <p class="section-subtitle">Consejos, guías y noticias locales</p>
+                  </div>
+                  <a class="section-link" href="/blog">Ver todos →</a>
+                </div>
+                <div class="blog-preview-grid" id="blog-preview-grid">
+                  <div class="blog-preview-loading">Cargando artículos…</div>
+                </div>
+                <div style="text-align:center;margin-top:var(--space-5)">
+                  <a href="/blog" class="btn btn-secondary">✨ Ver todos los artículos del Blog</a>
+                </div>
               </div>
-              <a class="section-link" href="/blog">Ver todos →</a>
-            </div>
-            <div class="blog-preview-grid" id="blog-preview-grid">
-              <div class="blog-preview-loading">Cargando artículos…</div>
-            </div>
-            <div style="text-align:center;margin-top:var(--space-5)">
-              <a href="/blog" class="btn btn-secondary">✨ Ver todos los artículos del Blog</a>
+
+              <!-- Right: YouTube Video Carousel -->
+              ${YOUTUBE_VIDEOS.length > 0 ? `
+              <div class="video-side">
+                <div class="section-header">
+                  <div>
+                    <h2 class="section-title">🎬 Videos</h2>
+                    <p class="section-subtitle">Contenido destacado</p>
+                  </div>
+                </div>
+                <div class="yt-carousel" id="yt-carousel">
+                  <div class="yt-carousel-viewport">
+                    <div class="yt-carousel-track" id="yt-carousel-track">
+                      ${YOUTUBE_VIDEOS.map((v, i) => {
+                        const vid = getYouTubeId(v.url);
+                        return vid ? `
+                          <div class="yt-carousel-slide ${i === 0 ? 'active' : ''}" data-index="${i}">
+                            <iframe
+                              src="https://www.youtube.com/embed/${vid}?rel=0&modestbranding=1"
+                              title="${escapeHtml(v.title || 'Video')}"
+                              frameborder="0"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowfullscreen
+                              loading="lazy"
+                            ></iframe>
+                          </div>
+                        ` : '';
+                      }).join('')}
+                    </div>
+                  </div>
+                  ${YOUTUBE_VIDEOS.length > 1 ? `
+                  <div class="yt-carousel-controls">
+                    <button class="yt-carousel-arrow yt-arrow-prev" id="yt-prev" aria-label="Video anterior">‹</button>
+                    <div class="yt-carousel-dots" id="yt-dots">
+                      ${YOUTUBE_VIDEOS.map((_, i) => `
+                        <button class="yt-dot ${i === 0 ? 'active' : ''}" data-index="${i}" aria-label="Video ${i+1}"></button>
+                      `).join('')}
+                    </div>
+                    <button class="yt-carousel-arrow yt-arrow-next" id="yt-next" aria-label="Siguiente video">›</button>
+                  </div>
+                  <div class="yt-progress-bar" id="yt-progress"></div>
+                  ` : ''}
+                </div>
+              </div>
+              ` : ''}
+
             </div>
           </section>
         </div>

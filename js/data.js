@@ -185,3 +185,35 @@ const DEMO_ADS = [
     images: [], featured: true, createdAt: Date.now() - 90000000
   },
 ];
+
+/* ============================================
+   YOUTUBE VIDEO CAROUSEL — Admin Config
+   ============================================
+   Para agregar o quitar videos, el administrador solo necesita
+   editar esta lista. Soporta URLs en formato:
+     - https://youtu.be/VIDEO_ID
+     - https://www.youtube.com/watch?v=VIDEO_ID
+     - O solo el VIDEO_ID directamente
+   ============================================ */
+const YOUTUBE_VIDEOS = [
+  { url: 'https://youtu.be/5dcH5djqicE?si=AwVadxrGxMR-YjZd', title: 'Video 1' },
+  { url: 'https://youtu.be/5dcH5djqicE?si=AwVadxrGxMR-YjZd', title: 'Video 2' },
+  { url: 'https://youtu.be/5dcH5djqicE?si=AwVadxrGxMR-YjZd', title: 'Video 3' },
+];
+
+/** Extract YouTube video ID from various URL formats */
+function getYouTubeId(url) {
+  if (!url) return null;
+  // Already a plain ID (11 chars)
+  if (/^[a-zA-Z0-9_-]{11}$/.test(url)) return url;
+  // youtu.be/ID
+  let m = url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+  if (m) return m[1];
+  // youtube.com/watch?v=ID
+  m = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+  if (m) return m[1];
+  // youtube.com/embed/ID
+  m = url.match(/embed\/([a-zA-Z0-9_-]{11})/);
+  if (m) return m[1];
+  return null;
+}

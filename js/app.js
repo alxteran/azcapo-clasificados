@@ -119,6 +119,7 @@ function router() {
     heroCarousel.stop();
     setTimeout(() => heroCarousel.init(), 0);
     setTimeout(() => loadBlogPreview(), 200);
+    setTimeout(() => initYtCarousel(), 300);
   }
 
   // If on auth page, generate and draw CAPTCHA
@@ -1288,6 +1289,73 @@ async function loadBlogPreview() {
     const grid2 = document.getElementById('blog-preview-grid');
     if (grid2) grid2.innerHTML = '';
   }
+}
+
+/* ---- YouTube Video Carousel (Home Page) ---- */
+let ytCarouselTimer = null;
+
+function initYtCarousel() {
+  const track = document.getElementById('yt-carousel-track');
+  const dots  = document.querySelectorAll('#yt-dots .yt-dot');
+  const prev  = document.getElementById('yt-prev');
+  const next  = document.getElementById('yt-next');
+  const bar   = document.getElementById('yt-progress');
+
+  if (!track || dots.length === 0) return;
+
+  const slides = track.querySelectorAll('.yt-carousel-slide');
+  const total  = slides.length;
+  if (total <= 1) return;
+
+  let current  = 0;
+  const INTERVAL = 5000; // 5 seconds
+  let elapsed  = 0;
+  const TICK   = 50; // progress update interval
+
+  function goTo(idx) {
+    current = ((idx % total) + total) % total;
+    track.style.transform = `translateX(-${current * 100}%)`;
+    dots.forEach((d, i) => d.classList.toggle('active', i === current));
+    elapsed = 0;
+  }
+
+  function nextSlide() { goTo(current + 1); }
+  function prevSlide() { goTo(current - 1); }
+
+  // Auto-play with progress bar
+  function startAuto() {
+    stopAuto();
+    elapsed = 0;
+    ytCarouselTimer = setInterval(() => {
+      elapsed += TICK;
+      if (bar) bar.style.width = ((elapsed / INTERVAL) * 100) + '%';
+      if (elapsed >= INTERVAL) {
+        nextSlide();
+        elapsed = 0;
+      }
+    }, TICK);
+  }
+
+  function stopAuto() {
+    if (ytCarouselTimer) clearInterval(ytCarouselTimer);
+    ytCarouselTimer = null;
+    if (bar) bar.style.width = '0%';
+  }
+
+  // Manual navigation pauses auto for 15s then resumes
+  function manualNav(fn) {
+    stopAuto();
+    fn();
+    setTimeout(startAuto, 15000);
+  }
+
+  if (prev) prev.addEventListener('click', () => manualNav(prevSlide));
+  if (next) next.addEventListener('click', () => manualNav(nextSlide));
+  dots.forEach(d => {
+    d.addEventListener('click', () => manualNav(() => goTo(Number(d.dataset.index))));
+  });
+
+  startAuto();
 }
 
 /* ============================================
