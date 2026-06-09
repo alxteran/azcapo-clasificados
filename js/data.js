@@ -195,8 +195,11 @@ function getYouTubeId(url) {
   if (!url) return null;
   // Already a plain ID (11 chars)
   if (/^[a-zA-Z0-9_-]{11}$/.test(url)) return url;
+  // youtube.com/shorts/ID
+  let m = url.match(/shorts\/([a-zA-Z0-9_-]{11})/);
+  if (m) return m[1];
   // youtu.be/ID
-  let m = url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+  m = url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
   if (m) return m[1];
   // youtube.com/watch?v=ID
   m = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
@@ -206,3 +209,153 @@ function getYouTubeId(url) {
   if (m) return m[1];
   return null;
 }
+
+/** Get YouTube thumbnail URL from a video URL */
+function getYtThumbnail(url) {
+  const id = getYouTubeId(url);
+  return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : '';
+}
+
+/* ============================================
+   MEDIA CENTER — Demo Videos & Reels
+   ============================================ */
+const DEMO_VIDEOS = [
+  // === FEATURED / HERO ===
+  {
+    id: 'mc_hero', format: 'video', featured: true,
+    url: 'https://youtu.be/QgRKX3wEYkg',
+    title: 'Conoce AzcapoClasificados — Tu plataforma local',
+    description: 'Descubre la mejor plataforma de anuncios clasificados en Azcapotzalco. Compra, vende y promociona tus productos y servicios.',
+    category: 'todos', categoryLabel: '⭐ Destacado',
+    price: 'Gratis', location: 'Azcapotzalco, CDMX',
+    duration: '3:45', phone: '5512345678'
+  },
+  // === REELS (9:16) ===
+  {
+    id: 'mc_reel_1', format: 'reel',
+    url: 'https://youtube.com/shorts/Jpit9t-KksQ',
+    title: 'Depto en Renta — Reforma',
+    description: 'Departamento amueblado cerca del metro. Ideal para profesionistas.',
+    category: 'inmuebles', categoryLabel: '🏠 Inmuebles',
+    price: '$8,500/mes', location: 'Azcapotzalco',
+    phone: '5512345678'
+  },
+  {
+    id: 'mc_reel_2', format: 'reel',
+    url: 'https://youtube.com/shorts/Jpit9t-KksQ',
+    title: 'Nissan Versa 2023',
+    description: 'Seminuevo, único dueño, 25,000 km. Financiamiento disponible.',
+    category: 'vehiculos', categoryLabel: '🚗 Vehículos',
+    price: '$285,000', location: 'Azcapotzalco',
+    phone: '5598765432'
+  },
+  {
+    id: 'mc_reel_3', format: 'reel',
+    url: 'https://youtube.com/shorts/Jpit9t-KksQ',
+    title: 'Taquería El Güero — Azcapotzalco',
+    description: 'Los mejores tacos de la zona. Servicio a domicilio.',
+    category: 'negocios', categoryLabel: '🏪 Negocios',
+    price: 'Desde $15', location: 'Azcapotzalco Centro',
+    phone: '5544332211'
+  },
+  {
+    id: 'mc_reel_4', format: 'reel',
+    url: 'https://youtube.com/shorts/Jpit9t-KksQ',
+    title: 'Electricista Certificado',
+    description: 'Instalaciones eléctricas, mantenimiento y reparaciones. Trabajo garantizado.',
+    category: 'servicios', categoryLabel: '🔧 Servicios',
+    price: 'A convenir', location: 'Azcapotzalco',
+    phone: '5566778899'
+  },
+  {
+    id: 'mc_reel_5', format: 'reel',
+    url: 'https://youtube.com/shorts/Jpit9t-KksQ',
+    title: 'Vacante Mostrador — Medio Tiempo',
+    description: 'Se solicita personal para atención al cliente. Sueldo base + comisiones.',
+    category: 'empleo', categoryLabel: '💼 Empleo',
+    price: '$8,000/mes', location: 'Azcapotzalco',
+    phone: '5511223344'
+  },
+  {
+    id: 'mc_reel_6', format: 'reel',
+    url: 'https://youtube.com/shorts/Jpit9t-KksQ',
+    title: 'Casa 3 Recámaras — Oportunidad',
+    description: 'Casa con cochera, patio y roof garden. Escrituras al corriente.',
+    category: 'inmuebles', categoryLabel: '🏠 Inmuebles',
+    price: '$1,850,000', location: 'Col. Clavería',
+    phone: '5533221100'
+  },
+  // === VIDEOS (16:9) ===
+  {
+    id: 'mc_vid_1', format: 'video',
+    url: 'https://youtu.be/QgRKX3wEYkg',
+    title: 'Casa en Venta — Col. Azcapotzalco Centro',
+    description: 'Amplia casa de 3 recámaras, 2 baños completos, cochera para 2 autos. Cerca del metro Camarones.',
+    category: 'inmuebles', categoryLabel: '🏠 Inmuebles',
+    price: '$2,500,000', location: 'Azcapotzalco, CDMX',
+    duration: '2:15', phone: '5512345678'
+  },
+  {
+    id: 'mc_vid_2', format: 'video',
+    url: 'https://youtu.be/QgRKX3wEYkg',
+    title: 'Honda Civic 2020 — Único Dueño',
+    description: 'Honda Civic Touring 2020, piel, quemacocos, 45,000 km. Servicio de agencia.',
+    category: 'vehiculos', categoryLabel: '🚗 Vehículos',
+    price: '$345,000', location: 'Azcapotzalco, CDMX',
+    duration: '1:30', phone: '5598765432'
+  },
+  {
+    id: 'mc_vid_3', format: 'video',
+    url: 'https://youtu.be/QgRKX3wEYkg',
+    title: 'Plomería Profesional — Servicio Garantizado',
+    description: 'Plomero certificado con 15 años de experiencia. Destape, reparación de fugas, instalación de tinacos.',
+    category: 'servicios', categoryLabel: '🔧 Servicios',
+    price: 'A convenir', location: 'Azcapotzalco, CDMX',
+    duration: '0:58', phone: '5544332211'
+  },
+  {
+    id: 'mc_vid_4', format: 'video',
+    url: 'https://youtu.be/QgRKX3wEYkg',
+    title: 'Local Comercial en Renta — Av. Azcapotzalco',
+    description: 'Local de 80m² en avenida principal. Ideal para restaurante, tienda o consultorio.',
+    category: 'negocios', categoryLabel: '🏪 Negocios',
+    price: '$18,000/mes', location: 'Azcapotzalco, CDMX',
+    duration: '1:45', phone: '5566778899'
+  },
+  {
+    id: 'mc_vid_5', format: 'video',
+    url: 'https://youtu.be/QgRKX3wEYkg',
+    title: 'Se Solicita Personal — Restaurante',
+    description: 'Vacantes para meseros, cocineros y cajeros. Prestaciones de ley y propinas.',
+    category: 'empleo', categoryLabel: '💼 Empleo',
+    price: '$9,500/mes', location: 'Azcapotzalco, CDMX',
+    duration: '0:45', phone: '5511223344'
+  },
+  {
+    id: 'mc_vid_6', format: 'video',
+    url: 'https://youtu.be/QgRKX3wEYkg',
+    title: 'Departamento Nuevo — 2 Recámaras',
+    description: 'Departamento nuevo en condominio con vigilancia. 2 recámaras, cocina integral, 1 cajón.',
+    category: 'inmuebles', categoryLabel: '🏠 Inmuebles',
+    price: '$1,950,000', location: 'Col. Clavería, CDMX',
+    duration: '3:10', phone: '5533221100'
+  },
+  {
+    id: 'mc_vid_7', format: 'video',
+    url: 'https://youtu.be/QgRKX3wEYkg',
+    title: 'Moto Italika FT150 — Semi Nueva',
+    description: 'Italika FT150 2024, 3,000 km. Incluye casco y chaleco. Papeles en regla.',
+    category: 'vehiculos', categoryLabel: '🚗 Vehículos',
+    price: '$22,500', location: 'Azcapotzalco, CDMX',
+    duration: '1:12', phone: '5512345678'
+  },
+  {
+    id: 'mc_vid_8', format: 'video',
+    url: 'https://youtu.be/QgRKX3wEYkg',
+    title: 'Estética Unisex — Promociones del Mes',
+    description: 'Cortes desde $80, tintes desde $350, alaciado permanente $600.',
+    category: 'servicios', categoryLabel: '🔧 Servicios',
+    price: 'Desde $80', location: 'Azcapotzalco, CDMX',
+    duration: '0:55', phone: '5544332211'
+  }
+];

@@ -111,6 +111,9 @@ function router() {
     if (params.get('type')) currentFilters.type = params.get('type');
     html = renderSearchPage(currentQuery, currentFilters);
     updateActiveNav('');
+  } else if (path === '/media-center') {
+    html = renderMediaCenterPage();
+    updateActiveNav('media-center');
   } else {
     html = renderHomePage();
     updateActiveNav('home');
@@ -131,6 +134,11 @@ function router() {
     setTimeout(() => heroCarousel.init(), 0);
     setTimeout(() => loadBlogPreview(), 200);
     setTimeout(() => loadYtVideos(), 300);
+  }
+
+  // Init Media Center components
+  if (path === '/media-center') {
+    setTimeout(() => initMediaCenter(), 200);
   }
 
   // If on auth page, generate and draw CAPTCHA
@@ -223,6 +231,9 @@ function renderHeader() {
         <div class="header-actions">
           <a class="header-nav-link" href="/blog" style="color:var(--text-secondary)" title="Blog de la comunidad">
             📝 <span class="btn-text">Blog</span>
+          </a>
+          <a class="header-nav-link" data-nav="media-center" href="#/media-center" onclick="return false" style="color:var(--text-secondary)" title="Videos y Reels">
+            🎬 <span class="btn-text">Videos</span>
           </a>
           <a class="header-nav-link" data-nav="contact" href="#/contact" onclick="return false" style="color:var(--text-secondary)" title="Buzón de comentarios">
             📬 <span class="btn-text">Contacto</span>
@@ -1102,6 +1113,162 @@ async function initApp() {
 }
 
 document.addEventListener('DOMContentLoaded', initApp);
+
+/* ============================================
+   MEDIA CENTER — Interactive Functions
+   ============================================ */
+
+/** Initialize Media Center page components */
+function initMediaCenter() {
+  initReelsCarousel();
+  // Keyboard listener for modal
+  document.addEventListener('keydown', handleMediaCenterKeydown);
+}
+
+/** Handle keyboard events for Media Center modal */
+function handleMediaCenterKeydown(e) {
+  if (e.key === 'Escape') {
+    const modal = document.getElementById('mc-video-modal');
+    if (modal && modal.classList.contains('active')) {
+      closeVideoModal();
+    }
+  }
+}
+
+/** Initialize reels carousel with mouse drag support */
+function initReelsCarousel() {
+  const carousel = document.getElementById('mc-reels-carousel');
+  if (!carousel) return;
+
+  let isDown = false;
+  let startX;
+  let scrollLeft;
+  let hasDragged = false;
+
+  carousel.addEventListener('mousedown', (e) => {
+    isDown = true;
+    hasDragged = false;
+    carousel.classList.add('mc-grabbing');
+    startX = e.pageX - carousel.offsetLeft;
+    scrollLeft = carousel.scrollLeft;
+  });
+
+  carousel.addEventListener('mouseleave', () => {
+    isDown = false;
+    carousel.classList.remove('mc-grabbing');
+  });
+
+  carousel.addEventListener('mouseup', (e) => {
+    isDown = false;
+    carousel.classList.remove('mc-grabbing');
+    // Prevent click on cards after drag
+    if (hasDragged) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
+
+  carousel.addEventListener('mousemove', (e) => {
+    if (!isDown) return;
+    e.preventDefault();
+    const x = e.pageX - carousel.offsetLeft;
+    const walk = (x - startX) * 1.5;
+    if (Math.abs(walk) > 5) hasDragged = true;
+    carousel.scrollLeft = scrollLeft - walk;
+  });
+
+  // Prevent click on reel cards after dragging
+  carousel.addEventListener('click', (e) => {
+    if (hasDragged) {
+      e.preventDefault();
+      e.stopPropagation();
+      hasDragged = false;
+    }
+  }, true);
+}
+
+/** Open video modal with full details */
+function openVideoModal(videoId) {
+  const video = DEMO_VIDEOS.find(v => v.id === videoId);
+  if (!video) return;
+
+  const ytId = getYouTubeId(video.url);
+  if (!ytId) return;
+
+  const modal = document.getElementById('mc-video-modal');
+  const player = document.getElementById('mc-modal-player');
+
+  // Set player source with autoplay
+  player.src = `https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0&modestbranding=1`;
+
+  // Update info
+  document.getElementById('mc-modal-title').textContent = video.title;
+  document.getElementById('mc-modal-price').textContent = video.price;
+  document.getElementById('mc-modal-desc').textContent = video.description || 'Anuncio disponible en AzcapoClasificados.';
+
+  // Set action links
+  const adLink = document.getElementById('mc-modal-ad-link');
+  adLink.href = '#/search';
+  adLink.onclick = function(e) {
+    e.preventDefault();
+    closeVideoModal();
+    navigateTo('/search');
+  };
+
+  const waLink = document.getElementById('mc-modal-whatsapp');
+  if (video.phone) {
+    const waMsg = encodeURIComponent(`Hola, vi tu anuncio "${video.title}" en AzcapoClasificados y me interesa. ¿Podrías darme más información?`);
+    waLink.href = `https://wa.me/52${video.phone}?text=${waMsg}`;
+    waLink.style.display = '';
+  } else {
+    waLink.style.display = 'none';
+  }
+
+  const phoneLink = document.getElementById('mc-modal-phone');
+  if (video.phone) {
+    phoneLink.href = `tel:+52${video.phone}`;
+    phoneLink.style.display = '';
+  } else {
+    phoneLink.style.display = 'none';
+  }
+
+  // Show modal with animation
+  modal.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+/** Close video modal */
+function closeVideoModal() {
+  const modal = document.getElementById('mc-video-modal');
+  const player = document.getElementById('mc-modal-player');
+
+  if (player) player.src = ''; // Stop video
+  if (modal) modal.classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+/** Filter video grid by category */
+function filterMediaVideos(category, btn) {
+  // Update active button
+  document.querySelectorAll('.mc-filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+
+  // Filter grid cards with animation
+  const cards = document.querySelectorAll('.mc-video-card');
+  let delay = 0;
+  cards.forEach(card => {
+    const cardCat = card.dataset.category;
+    const show = category === 'all' || cardCat === category;
+    if (show) {
+      card.style.display = '';
+      card.style.animation = `fadeInUp 0.3s ease ${delay}s both`;
+      delay += 0.04;
+    } else {
+      card.style.display = 'none';
+      card.style.animation = '';
+    }
+  });
+}
 
 /* ============================================================
    HERO BANNER CAROUSEL

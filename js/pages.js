@@ -652,6 +652,142 @@ function renderChatsPage() {
   `;
 }
 
+/* ---- Media Center Page ---- */
+function renderMediaCenterPage() {
+  const heroVideo = DEMO_VIDEOS.find(v => v.featured);
+  const reels = DEMO_VIDEOS.filter(v => v.format === 'reel');
+  const gridVideos = DEMO_VIDEOS.filter(v => v.format === 'video' && !v.featured);
+  const heroYtId = heroVideo ? getYouTubeId(heroVideo.url) : '';
+
+  return `
+    <div class="media-center-page">
+      <!-- Breadcrumb -->
+      <div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-6)">
+        <a href="#" onclick="navigateTo('/');return false;" style="color:var(--text-muted);text-decoration:none;font-size:1.2rem">← Inicio</a>
+      </div>
+
+      <!-- Page Header -->
+      <div class="mc-page-header">
+        <h1 class="mc-page-title">🎬 Videos y Reels</h1>
+        <p class="mc-page-subtitle">Descubre los mejores anuncios en video de Azcapotzalco</p>
+      </div>
+
+      <!-- SECCIÓN 1: VIDEO DESTACADO (HERO 16:9) -->
+      ${heroVideo ? `
+      <section class="mc-section" id="mc-hero-section">
+        <h2 class="mc-section-title">Video Destacado</h2>
+        <div class="mc-hero-container">
+          <div class="mc-hero-video">
+            <div class="mc-aspect-16-9">
+              <iframe
+                src="https://www.youtube.com/embed/${heroYtId}?rel=0&modestbranding=1"
+                title="${escapeHtml(heroVideo.title)}"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen
+                loading="lazy"
+              ></iframe>
+            </div>
+          </div>
+          <div class="mc-hero-info">
+            <h3>${escapeHtml(heroVideo.title)}</h3>
+            <p>${escapeHtml(heroVideo.description)}</p>
+            <div class="mc-hero-meta">
+              <span class="mc-hero-price">${escapeHtml(heroVideo.price)}</span>
+              <span class="mc-hero-location">📍 ${escapeHtml(heroVideo.location)}</span>
+            </div>
+            <div class="mc-hero-actions">
+              <a href="#" onclick="navigateTo('/search');return false;" class="btn btn-primary">Ver Anuncio Completo</a>
+              <a href="https://wa.me/52${heroVideo.phone}?text=${encodeURIComponent('Hola, vi tu anuncio en AzcapoClasificados')}" target="_blank" rel="noopener" class="mc-btn-whatsapp">💬 WhatsApp</a>
+              <a href="tel:+52${heroVideo.phone}" class="btn btn-secondary" style="text-align:center">📞 Llamar</a>
+            </div>
+          </div>
+        </div>
+      </section>
+      ` : ''}
+
+      <!-- SECCIÓN 2: REELS POPULARES (9:16 Carrusel) -->
+      ${reels.length > 0 ? `
+      <section class="mc-section" id="mc-reels-section">
+        <div class="mc-section-header">
+          <h2 class="mc-section-title">Reels Populares</h2>
+          <p class="mc-section-subtitle">Desliza para ver más →</p>
+        </div>
+        <div class="mc-reels-carousel" id="mc-reels-carousel">
+          ${reels.map(v => `
+            <div class="mc-reel-card" onclick="openVideoModal('${v.id}')">
+              <div class="mc-aspect-9-16">
+                <img src="${getYtThumbnail(v.url)}" alt="${escapeHtml(v.title)}" loading="lazy">
+                <div class="mc-reel-play-overlay">
+                  <div class="mc-play-icon">▶</div>
+                </div>
+              </div>
+              <div class="mc-reel-info-overlay">
+                <div class="mc-reel-price">${escapeHtml(v.price)}</div>
+                <div class="mc-reel-title">${escapeHtml(v.title)}</div>
+                <div class="mc-reel-category">${escapeHtml(v.categoryLabel)}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </section>
+      ` : ''}
+
+      <!-- SECCIÓN 3: EXPLORAR VIDEOS (Grid 16:9) -->
+      <section class="mc-section" id="mc-grid-section">
+        <h2 class="mc-section-title">Explorar Videos</h2>
+        <div class="mc-filters-bar" id="mc-filters">
+          <button class="mc-filter-btn active" onclick="filterMediaVideos('all', this)">Todos</button>
+          <button class="mc-filter-btn" onclick="filterMediaVideos('inmuebles', this)">🏠 Inmuebles</button>
+          <button class="mc-filter-btn" onclick="filterMediaVideos('vehiculos', this)">🚗 Vehículos</button>
+          <button class="mc-filter-btn" onclick="filterMediaVideos('servicios', this)">🔧 Servicios</button>
+          <button class="mc-filter-btn" onclick="filterMediaVideos('negocios', this)">🏪 Negocios</button>
+          <button class="mc-filter-btn" onclick="filterMediaVideos('empleo', this)">💼 Empleo</button>
+        </div>
+        <div class="mc-video-grid" id="mc-video-grid">
+          ${gridVideos.map(v => `
+            <article class="mc-video-card" data-category="${v.category}" onclick="openVideoModal('${v.id}')">
+              <div class="mc-aspect-16-9 mc-thumb-wrapper">
+                <img src="${getYtThumbnail(v.url)}" alt="${escapeHtml(v.title)}" loading="lazy">
+                ${v.duration ? `<span class="mc-video-duration">▶ ${v.duration}</span>` : ''}
+              </div>
+              <div class="mc-video-card-body">
+                <h3 class="mc-video-card-title">${escapeHtml(v.title)}</h3>
+                <div class="mc-video-card-meta">
+                  <span class="mc-video-card-price">${escapeHtml(v.price)}</span>
+                  <span class="mc-video-card-location">📍 ${escapeHtml(v.location)}</span>
+                </div>
+              </div>
+            </article>
+          `).join('')}
+        </div>
+      </section>
+    </div>
+
+    <!-- MODAL PARA REPRODUCCIÓN INTERNA -->
+    <div class="mc-video-modal" id="mc-video-modal">
+      <div class="mc-modal-backdrop" onclick="closeVideoModal()"></div>
+      <div class="mc-modal-content">
+        <button class="mc-modal-close" onclick="closeVideoModal()">✕</button>
+        <div class="mc-aspect-16-9">
+          <iframe id="mc-modal-player" src="" title="Video Player"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen></iframe>
+        </div>
+        <div class="mc-modal-info">
+          <h2 id="mc-modal-title" class="mc-modal-title-text">Título del Anuncio</h2>
+          <p id="mc-modal-price" class="mc-modal-price-text">$Precio</p>
+          <p id="mc-modal-desc" class="mc-modal-desc-text">Descripción del anuncio vinculado.</p>
+        </div>
+        <div class="mc-modal-actions">
+          <a id="mc-modal-ad-link" href="#" class="btn btn-primary mc-modal-btn">Ver Anuncio Completo</a>
+          <a id="mc-modal-whatsapp" href="#" class="mc-btn-whatsapp mc-modal-btn" target="_blank" rel="noopener">💬 WhatsApp</a>
+          <a id="mc-modal-phone" href="#" class="btn btn-secondary mc-modal-btn">📞 Llamar</a>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 /* ---- Empty State ---- */
 function renderEmptyState() {
   return `
@@ -692,6 +828,7 @@ function renderFooter() {
               <a class="footer-link" href="#" onclick="navigateTo('/publish');return false;">Publicar anuncio</a>
               <a class="footer-link" href="#" onclick="navigateTo('/my-ads');return false;">Mis anuncios</a>
               <a class="footer-link" href="/blog">📝 Blog de la Comunidad</a>
+              <a class="footer-link" href="#" onclick="navigateTo('/media-center');return false;">🎬 Videos y Reels</a>
             </div>
           </div>
         </div>
