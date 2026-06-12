@@ -229,6 +229,7 @@ function renderAdminPage() {
             <span id="metrics-last-updated" style="font-size:12px;color:var(--text-muted)"></span>
             <button class="btn btn-secondary" onclick="loadAdminMetrics()" style="font-size:13px;padding:8px 14px">🔄 Actualizar</button>
             <button class="btn btn-primary" onclick="openInvestorReport()" style="font-size:13px;padding:8px 16px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none">📄 Reporte PDF</button>
+            <button class="btn btn-secondary" onclick="sendWeeklyReportNow()" style="font-size:13px;padding:8px 14px" title="Envía el email de reporte ahora a alxteran@gmail.com">📧 Enviar email</button>
           </div>
         </div>
 

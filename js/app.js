@@ -2036,6 +2036,37 @@ function openInvestorReport() {
   }
 }
 
+/** Trigger the weekly email report manually — useful to test or send on demand */
+async function sendWeeklyReportNow() {
+  let key = window._adminKey;
+  if (!key) {
+    key = prompt('Ingresa tu Admin Key (CRON_SECRET):');
+    if (!key) return;
+    window._adminKey = key;
+  }
+
+  const btn = event?.target;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Enviando…'; }
+
+  try {
+    const res = await fetch('/api/cron/weekly-report?trigger=' + encodeURIComponent(key), {
+      method: 'GET',
+      headers: { 'x-admin-key': key },
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      showToast(`📧 Email enviado a alxteran@gmail.com · Conversión ${data.metrics.conversion}%`, 'success');
+    } else {
+      showToast('Error al enviar el email: ' + (data.error || 'desconocido'), 'error');
+    }
+  } catch (err) {
+    showToast('Error de red al enviar el email', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📧 Enviar email'; }
+  }
+}
+
 let _adminVideos = [];
 
 async function loadAdminVideos() {
