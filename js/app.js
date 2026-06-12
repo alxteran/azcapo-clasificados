@@ -541,7 +541,8 @@ function showPublishConfirmation(ad) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
   // Show boost upsell modal after a short delay
-  setTimeout(() => showBoostUpsellModal(adId, adTitle), 800);
+  // Track: upsell modal was displayed
+  setTimeout(() => { showBoostUpsellModal(adId, adTitle); trackEvent('ad_published', { ad_id: adId }); }, 800);
 }
 
 /** Render and show the boost upsell modal */
@@ -596,31 +597,39 @@ function showBoostUpsellModal(adId, adTitle) {
         </div>
       </div>
 
-      <button class="upsell-skip" onclick="closeBoostUpsellModal()">No gracias, solo publicar gratis</button>
+      <button class="upsell-skip" onclick="closeBoostUpsellModal('skip')">No gracias, solo publicar gratis</button>
     </div>
   `;
 
   // Close on backdrop click
   overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) closeBoostUpsellModal();
+    if (e.target === overlay) closeBoostUpsellModal('backdrop');
   });
 
   document.body.appendChild(overlay);
+
+  // Track: modal was shown to this user
+  trackEvent('upsell_shown', { ad_id: adId });
 }
 
-function closeBoostUpsellModal() {
+function closeBoostUpsellModal(reason) {
   const overlay = document.getElementById('upsell-overlay');
   if (overlay) {
     overlay.style.opacity = '0';
     overlay.style.transition = 'opacity 0.2s';
     setTimeout(() => overlay.remove(), 200);
   }
+  if (reason === 'skip')     trackEvent('upsell_skip');
+  if (reason === 'backdrop') trackEvent('upsell_backdrop');
 }
 
 /** Handle boost payment — calls API and redirects to MercadoPago */
 async function handleBoostPayment(adId, boostLevel) {
   const btn = document.getElementById('boost-btn-' + boostLevel);
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Procesando...'; }
+
+  // Track: user clicked a specific level
+  trackEvent('upsell_level_click', { level: boostLevel, ad_id: adId });
 
   try {
     const data = await apiRequest('/api/payments/create-preference', {
@@ -629,7 +638,10 @@ async function handleBoostPayment(adId, boostLevel) {
     });
 
     if (data.init_point) {
-      window.location.href = data.init_point;
+      // Track: user is being redirected to MercadoPago
+      trackEvent('boost_initiated', { level: boostLevel, price: data.price, ad_id: adId });
+      // Small delay so the event fires before navigation
+      setTimeout(() => { window.location.href = data.init_point; }, 150);
     } else {
       throw new Error(data.error || 'No se pudo generar el enlace de pago');
     }
@@ -637,6 +649,23 @@ async function handleBoostPayment(adId, boostLevel) {
     console.error('Boost payment error:', err);
     showToast(err.message || 'Error al procesar el pago. Intenta de nuevo.', 'error');
     if (btn) { btn.disabled = false; btn.textContent = 'Elegir ' + boostLevel; }
+  }
+}
+
+/**
+ * Lightweight analytics tracker — fire-and-forget, never blocks UX.
+ * Sends events to /api/analytics/event (stored in Neon DB).
+ */
+function trackEvent(event, properties = {}) {
+  try {
+    fetch('/api/analytics/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event, properties }),
+      keepalive: true, // ensures the request completes even if page navigates away
+    }).catch(() => {}); // silently ignore failures
+  } catch (_) {
+    // never throw from analytics
   }
 }
 
