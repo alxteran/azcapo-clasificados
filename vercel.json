@@ -3,7 +3,7 @@
   "buildCommand": "node scripts/generate-manifest.js",
   "git": {
     "deploymentEnabled": {
-      "main": false
+      "main": true
     }
   },
   "rewrites": [
