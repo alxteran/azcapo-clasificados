@@ -2018,6 +2018,24 @@ async function _renderAdminMetrics(adminKey) {
   }
 }
 
+/** Open the investor PDF report in a new tab.
+ *  Reuses the cached admin key if already entered, otherwise prompts once.
+ */
+function openInvestorReport() {
+  let key = window._adminKey;
+  if (!key) {
+    key = prompt('Ingresa tu Admin Key (CRON_SECRET) para generar el reporte:');
+    if (!key) return;
+    window._adminKey = key;
+  }
+  // Open the server-rendered report page in a new tab
+  const url = '/api/analytics/report?key=' + encodeURIComponent(key);
+  const tab = window.open(url, '_blank', 'noopener');
+  if (!tab) {
+    showToast('Activa las ventanas emergentes para este sitio y vuelve a intentarlo.', 'error');
+  }
+}
+
 let _adminVideos = [];
 
 async function loadAdminVideos() {
