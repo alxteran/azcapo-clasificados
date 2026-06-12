@@ -90,7 +90,7 @@ function router() {
     }
     html = renderAdminPage();
     updateActiveNav('');
-    setTimeout(() => { loadAdminVideos(); loadAdminReels(); loadAdminExploreVideos(); loadAdminMessages(); }, 100);
+    setTimeout(() => { loadAdminVideos(); loadAdminReels(); loadAdminExploreVideos(); loadAdminMessages(); loadAdminMetrics(); }, 100);
   } else if (path === '/contact') {
     html = renderContactPage();
     updateActiveNav('contact');
@@ -1821,6 +1821,203 @@ async function loadBlogPreview() {
 }
 
 /* ---- Admin: Video Management ---- */
+/* ---- Admin Metrics Dashboard ---- */
+async function loadAdminMetrics() {
+  const cronSecret = prompt('Ingresa tu Admin Key (CRON_SECRET):');
+  if (!cronSecret) return;
+
+  // Store for refresh without re-asking
+  window._adminKey = cronSecret;
+  _renderAdminMetrics(cronSecret);
+}
+
+// Called internally after key is cached
+async function _renderAdminMetrics(adminKey) {
+  const ts = document.getElementById('metrics-last-updated');
+  if (ts) ts.textContent = '⏳ Actualizando…';
+
+  // Show skeletons
+  ['kpi-published','kpi-shown','kpi-clicked','kpi-initiated','kpi-conversion','kpi-mrr'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<div class="admin-kpi-skeleton"></div>';
+  });
+
+  try {
+    const [funnelRes, metricsRes] = await Promise.all([
+      fetch('/api/analytics/funnel', { headers: { 'x-admin-key': adminKey } }).then(r => r.json()),
+      fetch('/api/admin/metrics',    { headers: { 'x-admin-key': adminKey } }).then(r => r.json()),
+    ]);
+
+    if (!funnelRes.success) {
+      showToast('Admin Key incorrecta', 'error');
+      return;
+    }
+
+    const f  = funnelRes.funnel;
+    const m  = metricsRes.metrics || {};
+
+    // ---- KPI Cards ----
+    const setKPI = (id, value, prefix = '', suffix = '') => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.innerHTML = '';
+        const span = document.createElement('span');
+        span.style.cssText = 'font-size:28px;font-weight:800;display:block;line-height:1.1';
+        span.textContent = prefix + (value ?? '—') + suffix;
+        el.appendChild(span);
+        // Count-up animation
+        if (typeof value === 'number' && !suffix.includes('%')) {
+          let start = 0;
+          const end = value;
+          const step = Math.ceil(end / 30);
+          const timer = setInterval(() => {
+            start = Math.min(start + step, end);
+            span.textContent = prefix + start + suffix;
+            if (start >= end) clearInterval(timer);
+          }, 30);
+        }
+      }
+    };
+
+    setKPI('kpi-published',  f.ads_published);
+    setKPI('kpi-shown',      f.upsell_shown);
+    setKPI('kpi-clicked',    f.upsell_clicked);
+    setKPI('kpi-initiated',  f.payment_started);
+    setKPI('kpi-conversion', f.rates?.overall_conversion_pct, '', '%');
+    setKPI('kpi-mrr',        m.mrr_mxn || 0, '$', ' MXN');
+
+    // ---- Funnel Bar Chart ----
+    const funnelContainer = document.getElementById('admin-funnel-bars');
+    if (funnelContainer) {
+      const steps = [
+        { label: 'Publicaron',    value: f.ads_published,   color: '#6366f1' },
+        { label: 'Vieron modal',  value: f.upsell_shown,    color: '#0ea5e9' },
+        { label: 'Hicieron clic', value: f.upsell_clicked,  color: '#f59e0b' },
+        { label: 'Pagaron',       value: f.payment_started, color: '#10b981' },
+      ];
+      const max = Math.max(...steps.map(s => s.value), 1);
+      funnelContainer.innerHTML = steps.map((s, i) => {
+        const pct = Math.round((s.value / max) * 100);
+        const convPct = i > 0 && steps[i-1].value > 0
+          ? ' (' + ((s.value / steps[i-1].value) * 100).toFixed(1) + '% del paso anterior)'
+          : '';
+        return `
+          <div style="margin-bottom:14px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+              <span style="font-size:13px;font-weight:600;color:var(--text-primary)">${s.label}</span>
+              <span style="font-size:13px;color:var(--text-muted)">${s.value}${convPct}</span>
+            </div>
+            <div style="background:var(--bg-secondary,#f3f4f6);border-radius:8px;height:10px;overflow:hidden">
+              <div style="background:${s.color};height:100%;width:0%;border-radius:8px;transition:width 0.6s ease ${i*0.1}s"
+                   id="funnel-bar-${i}"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      // Animate bars after render
+      requestAnimationFrame(() => {
+        steps.forEach((s, i) => {
+          const pct = Math.round((s.value / max) * 100);
+          const bar = document.getElementById('funnel-bar-' + i);
+          if (bar) setTimeout(() => { bar.style.width = pct + '%'; }, 50);
+        });
+      });
+    }
+
+    // ---- Level Breakdown ----
+    const levelEl = document.getElementById('admin-level-breakdown');
+    if (levelEl) {
+      const levels = funnelRes.level_breakdown || [];
+      const levelColors = { basic: '#0ea5e9', featured: '#f59e0b', premium: '#8b5cf6' };
+      const levelLabels = { basic: '▲ Básico', featured: '🔥 Destacado', premium: '⭐ Premium' };
+      const maxClicks = Math.max(...levels.map(l => Number(l.clicks)), 1);
+      if (!levels.length) {
+        levelEl.innerHTML = '<p style="font-size:13px;color:var(--text-muted)">Sin datos aún</p>';
+      } else {
+        levelEl.innerHTML = levels.map(l => `
+          <div style="margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span style="font-size:13px;font-weight:600">${levelLabels[l.level] || l.level}</span>
+              <span style="font-size:13px;color:var(--text-muted)">${l.clicks} clics</span>
+            </div>
+            <div style="background:var(--bg-secondary,#f3f4f6);border-radius:6px;height:8px;overflow:hidden">
+              <div style="background:${levelColors[l.level]||'#94a3b8'};height:100%;width:${Math.round((l.clicks/maxClicks)*100)}%;border-radius:6px;transition:width 0.5s ease"></div>
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+
+    // ---- Device Split ----
+    const deviceEl = document.getElementById('admin-device-split');
+    if (deviceEl) {
+      const devices = funnelRes.device_breakdown || [];
+      const mobile  = devices.find(d => d.is_mobile === true  || d.is_mobile === 't');
+      const desktop = devices.find(d => d.is_mobile === false || d.is_mobile === 'f');
+      const mShown  = Number(mobile?.shown  || 0);
+      const dShown  = Number(desktop?.shown || 0);
+      const total   = mShown + dShown || 1;
+      const mPct    = Math.round((mShown / total) * 100);
+      const dPct    = 100 - mPct;
+      deviceEl.innerHTML = `
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <div style="flex:${mPct};background:#6366f1;border-radius:6px;height:12px;min-width:4px;transition:flex 0.5s ease"></div>
+          <div style="flex:${dPct};background:#e2e8f0;border-radius:6px;height:12px;min-width:4px;transition:flex 0.5s ease"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px">
+          <span><b style="color:#6366f1">📱 Móvil</b> ${mShown} (${mPct}%)</span>
+          <span><b style="color:#64748b">🖥️ Desktop</b> ${dShown} (${dPct}%)</span>
+        </div>
+        <p style="font-size:12px;color:var(--text-muted);margin-top:10px">
+          ${mPct > 60 ? '⚠️ Mayoría móvil — asegúrate de que el modal upsell se vea bien en pantallas chicas.' : '✅ Buen balance dispositivos'}
+        </p>
+      `;
+    }
+
+    // ---- Live Feed ----
+    const feedEl = document.getElementById('admin-live-feed');
+    if (feedEl) {
+      const events = funnelRes.recent_events || [];
+      const eventLabels = {
+        ad_published:       { icon: '📝', label: 'Anuncio publicado' },
+        upsell_shown:       { icon: '👁️',  label: 'Modal visto' },
+        upsell_level_click: { icon: '🖱️',  label: 'Nivel clickeado' },
+        upsell_skip:        { icon: '⏭️',  label: 'Modal omitido' },
+        upsell_backdrop:    { icon: '✖️',  label: 'Cerrado fuera del modal' },
+        boost_initiated:    { icon: '💳',  label: 'Pago iniciado' },
+      };
+      if (!events.length) {
+        feedEl.innerHTML = '<p style="font-size:13px;color:var(--text-muted)">Sin actividad reciente</p>';
+      } else {
+        feedEl.innerHTML = events.map(e => {
+          const meta = eventLabels[e.event] || { icon: '•', label: e.event };
+          const props = typeof e.properties === 'string' ? JSON.parse(e.properties) : (e.properties || {});
+          const when  = e.created_at ? new Date(e.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '';
+          const detail = props.level ? ` · ${props.level}` : props.ad_id ? ` · ${props.ad_id.slice(0,8)}…` : '';
+          return `
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border-color,#f1f5f9)">
+              <span style="font-size:18px;flex-shrink:0">${meta.icon}</span>
+              <div style="flex:1;min-width:0">
+                <span style="font-size:13px;font-weight:600">${meta.label}</span>
+                <span style="font-size:12px;color:var(--text-muted)">${detail}</span>
+              </div>
+              <span style="font-size:11px;color:var(--text-muted);flex-shrink:0">${when}</span>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    // Update timestamp
+    if (ts) ts.textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-MX');
+
+  } catch (err) {
+    console.error('loadAdminMetrics error:', err);
+    showToast('Error al cargar métricas', 'error');
+    if (ts) ts.textContent = 'Error al cargar';
+  }
+}
+
 let _adminVideos = [];
 
 async function loadAdminVideos() {

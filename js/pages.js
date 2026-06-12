@@ -210,16 +210,91 @@ function renderHomePage() {
 /* ---- Admin Panel ---- */
 function renderAdminPage() {
   return `
-    <div class="container" style="max-width:700px;padding-top:var(--space-8);padding-bottom:var(--space-12)">
+    <div class="container" style="max-width:900px;padding-top:var(--space-8);padding-bottom:var(--space-12)">
       <div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-6)">
         <a href="#" onclick="navigateTo('/');return false;" style="color:var(--text-muted);text-decoration:none;font-size:1.2rem">← Inicio</a>
       </div>
 
       <h1 style="font-family:var(--font-display);font-size:var(--text-2xl);margin-bottom:var(--space-2)">⚙️ Panel de Administración</h1>
-      <p style="color:var(--text-muted);margin-bottom:var(--space-8)">Gestiona el contenido del sitio</p>
+      <p style="color:var(--text-muted);margin-bottom:var(--space-8)">Gestiona el contenido y monitorea el crecimiento del negocio</p>
+
+      <!-- ===== METRICS DASHBOARD ===== -->
+      <div class="admin-metrics-section" id="admin-metrics-section">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-5);flex-wrap:wrap;gap:12px">
+          <div>
+            <h2 style="font-family:var(--font-display);font-size:var(--text-xl);margin:0">📊 Dashboard de Métricas</h2>
+            <p style="color:var(--text-muted);font-size:var(--text-sm);margin:4px 0 0">Últimos 30 días · Embudo de conversión boost</p>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <span id="metrics-last-updated" style="font-size:12px;color:var(--text-muted)"></span>
+            <button class="btn btn-secondary" onclick="loadAdminMetrics()" style="font-size:13px;padding:8px 14px">🔄 Actualizar</button>
+          </div>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="admin-kpi-grid" id="admin-kpi-grid">
+          ${[
+            { id: 'kpi-published',   icon: '📝', label: 'Anuncios publicados',   color: '#6366f1' },
+            { id: 'kpi-shown',       icon: '👁️',  label: 'Modal upsell visto',   color: '#0ea5e9' },
+            { id: 'kpi-clicked',     icon: '🖱️',  label: 'Nivel seleccionado',   color: '#f59e0b' },
+            { id: 'kpi-initiated',   icon: '💳',  label: 'Pagos iniciados',      color: '#10b981' },
+            { id: 'kpi-conversion',  icon: '📈',  label: 'Conversión global',    color: '#8b5cf6', suffix: '%' },
+            { id: 'kpi-mrr',         icon: '💰',  label: 'MRR Tiendas',          color: '#ef4444', prefix: '$', suffix: ' MXN' },
+          ].map(k => `
+            <div class="admin-kpi-card" style="border-top:3px solid ${k.color}">
+              <div class="admin-kpi-icon">${k.icon}</div>
+              <div class="admin-kpi-value" id="${k.id}">
+                <div class="admin-kpi-skeleton"></div>
+              </div>
+              <div class="admin-kpi-label">${k.label}</div>
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- Funnel Bar Chart -->
+        <div class="admin-card" style="margin-top:var(--space-5)">
+          <h3 style="font-size:15px;font-weight:700;margin:0 0 18px;display:flex;align-items:center;gap:8px">
+            🔽 Embudo de Conversión
+            <span style="font-size:12px;font-weight:400;color:var(--text-muted)">publicar → modal → click → pago</span>
+          </h3>
+          <div id="admin-funnel-bars" class="admin-funnel-bars">
+            <div style="color:var(--text-muted);font-size:14px;text-align:center;padding:24px 0">⏳ Cargando embudo…</div>
+          </div>
+        </div>
+
+        <!-- Bottom row: level breakdown + device + daily -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
+
+          <!-- Level Breakdown -->
+          <div class="admin-card">
+            <h3 style="font-size:15px;font-weight:700;margin:0 0 14px">🎯 Nivel más elegido</h3>
+            <div id="admin-level-breakdown">
+              <div style="color:var(--text-muted);font-size:13px">⏳ Cargando…</div>
+            </div>
+          </div>
+
+          <!-- Device Split -->
+          <div class="admin-card">
+            <h3 style="font-size:15px;font-weight:700;margin:0 0 14px">📱 Dispositivo</h3>
+            <div id="admin-device-split">
+              <div style="color:var(--text-muted);font-size:13px">⏳ Cargando…</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Events Live Feed -->
+        <div class="admin-card" style="margin-top:16px">
+          <h3 style="font-size:15px;font-weight:700;margin:0 0 14px">⚡ Actividad reciente</h3>
+          <div id="admin-live-feed" style="max-height:220px;overflow-y:auto">
+            <div style="color:var(--text-muted);font-size:13px">⏳ Cargando…</div>
+          </div>
+        </div>
+
+      </div>
+      <!-- ===== /METRICS DASHBOARD ===== -->
 
       <!-- YouTube Videos Section -->
-      <div class="admin-card">
+      <div class="admin-card" style="margin-top:var(--space-8)">
         <h2 style="font-family:var(--font-display);font-size:var(--text-lg);margin-bottom:var(--space-2)">🎬 Videos de YouTube</h2>
         <p style="color:var(--text-muted);font-size:var(--text-sm);margin-bottom:var(--space-5)">
           Los videos aparecen como carrusel junto al blog en la página principal. Se rotan cada 5 segundos.
@@ -309,6 +384,7 @@ function renderAdminPage() {
     </div>
   `;
 }
+
 
 /* ---- Contact / Buzón de Comentarios ---- */
 function renderContactPage() {
