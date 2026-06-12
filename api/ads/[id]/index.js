@@ -45,11 +45,14 @@ async function handleUpdate(req, res, id) {
       return res.status(403).json({ success: false, message: 'No tienes permiso para editar este anuncio.' });
     }
 
-    const { title, description, category, price, location, images } = req.body || {};
+    const { title, description, category, price, location, images, latitude, longitude } = req.body || {};
 
     if (!title || !description || !category || !location) {
       return res.status(400).json({ success: false, message: 'Todos los campos obligatorios deben completarse.' });
     }
+
+    const lat = latitude != null ? Number(latitude) : null;
+    const lng = longitude != null ? Number(longitude) : null;
 
     const result = await sql`
       UPDATE ads SET
@@ -58,7 +61,9 @@ async function handleUpdate(req, res, id) {
         category = ${category},
         price = ${Number(price) || 0},
         location = ${location},
-        images = ${JSON.stringify((images || []).slice(0, 3))}
+        images = ${JSON.stringify((images || []).slice(0, 3))},
+        latitude = ${lat},
+        longitude = ${lng}
       WHERE public_id = ${id}
       RETURNING *
     `;

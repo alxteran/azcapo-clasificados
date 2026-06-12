@@ -53,6 +53,7 @@ function renderAdCard(ad, index = 0) {
         <div class="ad-card-badges">
           ${(Date.now() - ad.createdAt) < 86400000 * 3 ? '<span class="badge badge-new">Nuevo</span>' : ''}
           ${remainingBadge}
+          ${ad.featured ? `<span class="badge-boost badge-boost--${ad.boostLevel || 'featured'}">${ad.boostLevel === 'premium' ? '⭐ Premium' : ad.boostLevel === 'basic' ? '▲ Básico' : '🔥 Destacado'}</span>` : ''}
         </div>
       </div>
       <div class="ad-card-body">
@@ -452,5 +453,20 @@ function renderMyAdCard(ad, index = 0) {
         </div>
       </div>
     </article>
+  `;
+}
+
+function renderStarRating(rating, totalReviews) {
+  if (!rating || rating === 0) return '';
+  const stars = Math.round(rating);
+  const starHtml = Array.from({length: 5}, (_, i) => 
+    `<span style="color: ${i < stars ? '#f59e0b' : '#d1d5db'}">&#9733;</span>`
+  ).join('');
+  return `
+    <div class="star-rating">
+      ${starHtml}
+      <span class="star-rating__score">${Number(rating).toFixed(1)}</span>
+      ${totalReviews ? `<span class="star-rating__count">(${totalReviews} reseñas)</span>` : ''}
+    </div>
   `;
 }

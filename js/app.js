@@ -90,7 +90,7 @@ function router() {
     }
     html = renderAdminPage();
     updateActiveNav('');
-    setTimeout(() => { loadAdminVideos(); loadAdminMessages(); }, 100);
+    setTimeout(() => { loadAdminVideos(); loadAdminReels(); loadAdminExploreVideos(); loadAdminMessages(); }, 100);
   } else if (path === '/contact') {
     html = renderContactPage();
     updateActiveNav('contact');
@@ -114,6 +114,11 @@ function router() {
   } else if (path === '/media-center') {
     html = renderMediaCenterPage();
     updateActiveNav('media-center');
+  } else if (path.startsWith('/tienda/')) {
+    const slug = path.split('/tienda/')[1];
+    html = renderStorePlaceholderPage(slug);
+    updateActiveNav('');
+    setTimeout(() => loadStorePage(slug), 0);
   } else {
     html = renderHomePage();
     updateActiveNav('home');
@@ -485,14 +490,15 @@ async function handlePublish(event) {
   }
 }
 
-/** Show confirmation page after successful publish */
+/** Show confirmation page after successful publish — with boost upsell modal */
 function showPublishConfirmation(ad) {
   const adId = ad.public_id || ad.id;
+  const adTitle = ad.title || 'Tu anuncio';
   const appContent = document.getElementById('app-content');
-  
+
   // Reset currentRoute so navigateTo can work from this state
   currentRoute = '__confirmation__';
-  
+
   appContent.innerHTML = `
     <div class="publish-page">
       <div class="publish-confirmation">
@@ -509,13 +515,9 @@ function showPublishConfirmation(ad) {
         <div class="confirmation-community">
           <div class="confirmation-community-inner">
             <p>Este portal ha sido creado con un propósito claro: <strong>dar un mayor impulso al comercio local.</strong></p>
-            <p>A través de AzcapoClasificados, cualquier persona tendrá una herramienta sencilla y efectiva para impulsar y promover sus productos y servicios, llegando a más personas de su propia comunidad.</p>
-            <p>Este proyecto nace de una idea libre y espontánea: <strong>ayudar de forma desinteresada</strong> a que el comercio de nuestra zona crezca y se fortalezca. No hay intereses ocultos, solo la convicción de que el trabajo local merece visibilidad.</p>
-            <p>Pero para que este espacio pueda mantenerse activo, mejorar sus funciones y seguir siendo gratuito para la mayoría, <strong>necesitamos tu apoyo.</strong></p>
-            <p>Si puedes apoyarnos, te invitamos a dispararnos un café. Con ese pequeño gesto, nos darás la posibilidad de seguir manteniendo este proyecto… pensando siempre en tu beneficio.</p>
+            <p>A través de AzcapoClasificados, cualquier persona tendrá una herramienta sencilla y efectiva para impulsar y promover sus productos y servicios.</p>
             <p class="confirmation-highlight">Porque cuando el comercio local gana, todos ganamos.</p>
           </div>
-
           <div class="confirmation-cafe-cta">
             <button class="btn btn-cafe" onclick="window.open('https://mpago.la/1YvFDqr', '_blank')">
               ☕ Gracias por el café — $56.23 MXN
@@ -535,7 +537,225 @@ function showPublishConfirmation(ad) {
       </div>
     </div>
   `;
+
   window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  // Show boost upsell modal after a short delay
+  setTimeout(() => showBoostUpsellModal(adId, adTitle), 800);
+}
+
+/** Render and show the boost upsell modal */
+function showBoostUpsellModal(adId, adTitle) {
+  // Remove any existing modal
+  const existing = document.getElementById('upsell-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'upsell-overlay';
+  overlay.className = 'upsell-overlay';
+  overlay.innerHTML = `
+    <div class="upsell-modal" role="dialog" aria-modal="true" aria-labelledby="upsell-title">
+      <div class="upsell-modal__success">
+        <div class="upsell-modal__check">✅</div>
+        <div>
+          <p class="upsell-modal__title" id="upsell-title">Tu anuncio ya está activo</p>
+          <p class="upsell-modal__subtitle">${escapeHtml(adTitle.substring(0, 45))}${adTitle.length > 45 ? '…' : ''}</p>
+        </div>
+      </div>
+
+      <p class="upsell-modal__cta">¿Quieres que más personas lo vean?</p>
+      <p class="upsell-modal__desc">Elige un nivel para destacarlo — aparece arriba de todos los anuncios gratuitos.</p>
+
+      <div class="upsell-levels">
+        <div class="upsell-level">
+          <div class="upsell-level__header">
+            <span class="upsell-level__name">▲ Básico</span>
+            <span class="upsell-level__price">$80 <span>MXN</span></span>
+          </div>
+          <p class="upsell-level__desc">Aparece arriba en su categoría · 3 días</p>
+          <button class="upsell-level__btn" id="boost-btn-basic" onclick="handleBoostPayment('${adId}', 'basic')">Elegir Básico</button>
+        </div>
+
+        <div class="upsell-level upsell-level--popular">
+          <span class="upsell-level__popular-badge">🔥 Más elegido</span>
+          <div class="upsell-level__header">
+            <span class="upsell-level__name">🔥 Destacado</span>
+            <span class="upsell-level__price">$150 <span>MXN</span></span>
+          </div>
+          <p class="upsell-level__desc">Categoría + sección Destacados en home · 7 días</p>
+          <button class="upsell-level__btn" id="boost-btn-featured" onclick="handleBoostPayment('${adId}', 'featured')">Elegir Destacado</button>
+        </div>
+
+        <div class="upsell-level">
+          <div class="upsell-level__header">
+            <span class="upsell-level__name">⭐ Premium</span>
+            <span class="upsell-level__price">$280 <span>MXN</span></span>
+          </div>
+          <p class="upsell-level__desc">Todo lo anterior + 5 fotos extra · 7 días</p>
+          <button class="upsell-level__btn" id="boost-btn-premium" onclick="handleBoostPayment('${adId}', 'premium')">Elegir Premium</button>
+        </div>
+      </div>
+
+      <button class="upsell-skip" onclick="closeBoostUpsellModal()">No gracias, solo publicar gratis</button>
+    </div>
+  `;
+
+  // Close on backdrop click
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeBoostUpsellModal();
+  });
+
+  document.body.appendChild(overlay);
+}
+
+function closeBoostUpsellModal() {
+  const overlay = document.getElementById('upsell-overlay');
+  if (overlay) {
+    overlay.style.opacity = '0';
+    overlay.style.transition = 'opacity 0.2s';
+    setTimeout(() => overlay.remove(), 200);
+  }
+}
+
+/** Handle boost payment — calls API and redirects to MercadoPago */
+async function handleBoostPayment(adId, boostLevel) {
+  const btn = document.getElementById('boost-btn-' + boostLevel);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Procesando...'; }
+
+  try {
+    const data = await apiRequest('/api/payments/create-preference', {
+      method: 'POST',
+      body: JSON.stringify({ ad_public_id: adId, boost_level: boostLevel, payment_type: 'boost' }),
+    });
+
+    if (data.init_point) {
+      window.location.href = data.init_point;
+    } else {
+      throw new Error(data.error || 'No se pudo generar el enlace de pago');
+    }
+  } catch (err) {
+    console.error('Boost payment error:', err);
+    showToast(err.message || 'Error al procesar el pago. Intenta de nuevo.', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Elegir ' + boostLevel; }
+  }
+}
+
+/** Store page — placeholder while loading */
+function renderStorePlaceholderPage(slug) {
+  return `<div class="container" id="store-page-container"><div style="text-align:center;padding:4rem 1rem;color:var(--text-muted)">⏳ Cargando tienda...</div></div>`;
+}
+
+/** Async load of store page */
+async function loadStorePage(slug) {
+  const container = document.getElementById('store-page-container');
+  if (!container) return;
+  try {
+    const data = await Store.fetchStore(slug);
+    if (!data || !data.success) {
+      container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🏪</div><div class="empty-state-title">Tienda no encontrada</div><p class="empty-state-text">Esta tienda no existe o ya no está activa.</p><button class="btn btn-primary" onclick="navigateTo('/')">Volver al inicio</button></div>`;
+      return;
+    }
+    const { store, ads } = data;
+    const planLabels = { basic: 'Básica', plus: 'Plus', pro: 'Pro' };
+    container.innerHTML = `
+      <div class="store-header">
+        <div class="store-header__logo">
+          ${store.logo_url ? `<img src="${escapeHtml(store.logo_url)}" alt="Logo">` : '🏪'}
+        </div>
+        <div>
+          <div class="store-header__verified">✅ Tienda ${planLabels[store.plan] || 'Verificada'}</div>
+          <h1 class="store-header__name">${escapeHtml(store.name)}</h1>
+          ${store.description ? `<p class="store-header__desc">${escapeHtml(store.description)}</p>` : ''}
+          ${store.avg_rating > 0 ? `<div style="margin-bottom:10px">${renderStarRating(store.avg_rating, store.total_reviews)}</div>` : ''}
+          ${store.whatsapp ? `<a class="store-header__wa-btn" href="https://wa.me/${store.whatsapp.replace(/\D/g,'')}" target="_blank" rel="noopener">💬 Contactar por WhatsApp</a>` : ''}
+        </div>
+      </div>
+      <h2 style="font-size:18px;font-weight:700;margin-bottom:16px">Anuncios de la tienda (${ads.length})</h2>
+      ${ads.length > 0
+        ? `<div class="ad-grid">${ads.map((a, i) => renderAdCard(normalizeAd ? normalizeAd(a) : a, i)).join('')}</div>`
+        : `<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-title">Sin anuncios aún</div></div>`
+      }
+      <div class="reviews-section" id="store-reviews-${store.owner_id}">
+        <div class="reviews-section__title">⭐ Reseñas del vendedor</div>
+        <div id="reviews-list-${store.owner_id}"><div style="color:var(--text-muted);font-size:14px">⏳ Cargando reseñas...</div></div>
+        ${AuthStore.isLoggedIn() ? `
+          <div class="review-form" id="review-form-${store.owner_id}">
+            <div style="font-size:14px;font-weight:600;margin-bottom:10px">Dejar una reseña</div>
+            <div class="review-form__stars" id="star-selector-${store.owner_id}">
+              ${[1,2,3,4,5].map(n => `<span class="review-form__star" data-val="${n}" onclick="selectReviewStar(${store.owner_id}, ${n})">★</span>`).join('')}
+            </div>
+            <input type="hidden" id="review-rating-${store.owner_id}" value="0">
+            <textarea id="review-comment-${store.owner_id}" placeholder="Cuéntanos tu experiencia con este vendedor..." style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border-color,#e5e7eb);font-size:14px;resize:vertical;min-height:80px;box-sizing:border-box;margin-bottom:10px"></textarea>
+            <button class="btn btn-primary" onclick="submitReview(${store.owner_id})" id="submit-review-btn-${store.owner_id}">Enviar reseña</button>
+          </div>
+        ` : `<p style="font-size:13px;color:var(--text-muted);margin-top:12px"><a href="#" onclick="navigateTo('/auth');return false;">Inicia sesión</a> para dejar una reseña.</p>`}
+      </div>
+    `;
+    // Load reviews async
+    loadReviewsForSeller(store.owner_id);
+  } catch (err) {
+    console.error('loadStorePage error:', err);
+    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Error al cargar tienda</div></div>`;
+  }
+}
+
+/** Load reviews for a seller and render them */
+async function loadReviewsForSeller(sellerId) {
+  const container = document.getElementById('reviews-list-' + sellerId);
+  if (!container) return;
+  try {
+    const data = await Store.fetchReviews(sellerId);
+    const reviews = data.reviews || [];
+    if (!reviews.length) {
+      container.innerHTML = `<p style="font-size:13px;color:var(--text-muted)">Aún no hay reseñas para este vendedor. ¡Sé el primero!</p>`;
+      return;
+    }
+    container.innerHTML = reviews.map(r => `
+      <div class="review-card">
+        <div class="review-card__header">
+          <div>
+            ${renderStarRating(r.rating, 0)}
+            <span class="review-card__author">${escapeHtml(r.reviewer_email ? r.reviewer_email.split('@')[0] : 'Anónimo')}</span>
+          </div>
+          <span class="review-card__date">${r.created_at ? new Date(r.created_at).toLocaleDateString('es-MX') : ''}</span>
+        </div>
+        ${r.comment ? `<p class="review-card__comment">${escapeHtml(r.comment)}</p>` : ''}
+      </div>
+    `).join('');
+  } catch (err) {
+    container.innerHTML = `<p style="font-size:13px;color:var(--text-muted)">Error al cargar reseñas.</p>`;
+  }
+}
+
+/** Star selector for review form */
+function selectReviewStar(sellerId, value) {
+  document.getElementById('review-rating-' + sellerId).value = value;
+  const stars = document.querySelectorAll(`#star-selector-${sellerId} .review-form__star`);
+  stars.forEach((s, i) => s.classList.toggle('active', i < value));
+}
+
+/** Submit a review */
+async function submitReview(sellerId) {
+  const rating = Number(document.getElementById('review-rating-' + sellerId)?.value || 0);
+  const comment = document.getElementById('review-comment-' + sellerId)?.value?.trim() || '';
+  const btn = document.getElementById('submit-review-btn-' + sellerId);
+
+  if (!rating) { showToast('Selecciona una calificación (1-5 estrellas)', 'error'); return; }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Enviando...'; }
+
+  try {
+    const result = await Store.submitReview({ seller_id: sellerId, rating, comment });
+    if (result.success) {
+      showToast('¡Gracias por tu reseña! 🌟', 'success');
+      document.getElementById('review-form-' + sellerId)?.remove();
+      loadReviewsForSeller(sellerId);
+    } else {
+      throw new Error(result.message || 'Error al enviar reseña');
+    }
+  } catch (err) {
+    showToast(err.message || 'Error al enviar reseña.', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Enviar reseña'; }
+  }
 }
 
 /* ---- Payment Return Handler ---- */
@@ -1115,14 +1335,131 @@ async function initApp() {
 document.addEventListener('DOMContentLoaded', initApp);
 
 /* ============================================
-   MEDIA CENTER — Interactive Functions
+   MEDIA CENTER — Interactive Functions (API-backed)
    ============================================ */
+
+let _mcReels = [];
+let _mcExploreVideos = [];
 
 /** Initialize Media Center page components */
 function initMediaCenter() {
-  initReelsCarousel();
+  loadMediaCenterData();
   // Keyboard listener for modal
   document.addEventListener('keydown', handleMediaCenterKeydown);
+}
+
+/** Load all media center data from API endpoints */
+async function loadMediaCenterData() {
+  // Load all 3 sections in parallel
+  const [heroRes, reelsRes, exploreRes] = await Promise.allSettled([
+    fetch('/api/settings/videos').then(r => r.json()),
+    fetch('/api/settings/reels').then(r => r.json()),
+    fetch('/api/settings/explore-videos').then(r => r.json())
+  ]);
+
+  // === HERO VIDEO (first from youtube_videos) ===
+  const heroContainer = document.getElementById('mc-hero-container');
+  if (heroContainer) {
+    const heroVideos = (heroRes.status === 'fulfilled' && heroRes.value.success && Array.isArray(heroRes.value.videos))
+      ? heroRes.value.videos.filter(v => v.url && getYouTubeId(v.url))
+      : [];
+
+    if (heroVideos.length > 0) {
+      const hero = heroVideos[0];
+      const heroYtId = getYouTubeId(hero.url);
+      heroContainer.innerHTML = `
+        <div class="mc-hero-container">
+          <div class="mc-hero-video">
+            <div class="mc-aspect-16-9">
+              <iframe
+                src="https://www.youtube.com/embed/${heroYtId}?rel=0&modestbranding=1"
+                title="${escapeHtml(hero.title || 'Video Destacado')}"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen
+                loading="lazy"
+              ></iframe>
+            </div>
+          </div>
+          <div class="mc-hero-info">
+            <h3>${escapeHtml(hero.title || 'Video Destacado')}</h3>
+            <p>Descubre la mejor plataforma de anuncios clasificados en Azcapotzalco. Compra, vende y promociona tus productos y servicios.</p>
+            <div class="mc-hero-meta">
+              <span class="mc-hero-price">Elaboramos tu video y lo publicamos aquí</span>
+              <span class="mc-hero-location">📍 Azcapotzalco, CDMX</span>
+            </div>
+            <div class="mc-hero-actions">
+              <a href="#" onclick="navigateTo('/search');return false;" class="btn btn-primary">Directorio de anuncios</a>
+              <p style="text-align:center;color:var(--text-secondary);font-size:var(--text-sm);margin:var(--space-2) 0">Ponte en contacto con nosotros</p>
+              <a href="https://wa.me/525533094563?text=${encodeURIComponent('Hola, me interesa el servicio de video para AzcapoClasificados')}" target="_blank" rel="noopener" class="mc-btn-whatsapp">💬 WhatsApp</a>
+            </div>
+          </div>
+        </div>`;
+    } else {
+      heroContainer.innerHTML = `
+        <div style="text-align:center;padding:var(--space-8) 0;color:var(--text-muted);border:2px dashed var(--glass-border);border-radius:var(--radius-xl)">
+          <div style="font-size:2rem;margin-bottom:var(--space-2)">🎬</div>
+          <p style="font-size:var(--text-sm)">No hay video destacado configurado.</p>
+        </div>`;
+    }
+  }
+
+  // === REELS POPULARES ===
+  const reelsCarousel = document.getElementById('mc-reels-carousel');
+  _mcReels = (reelsRes.status === 'fulfilled' && reelsRes.value.success && Array.isArray(reelsRes.value.reels))
+    ? reelsRes.value.reels.filter(v => v.url && getYouTubeId(v.url))
+    : [];
+
+  if (reelsCarousel) {
+    if (_mcReels.length > 0) {
+      reelsCarousel.innerHTML = _mcReels.map((v, i) => `
+        <div class="mc-reel-card" onclick="openVideoModal('reel', ${i})">
+          <div class="mc-aspect-9-16">
+            <img src="${getYtThumbnail(v.url)}" alt="${escapeHtml(v.title || 'Reel')}" loading="lazy">
+            <div class="mc-reel-play-overlay">
+              <div class="mc-play-icon">▶</div>
+            </div>
+          </div>
+          <div class="mc-reel-info-overlay">
+            <div class="mc-reel-title">${escapeHtml(v.title || 'Reel ' + (i + 1))}</div>
+          </div>
+        </div>
+      `).join('');
+      initReelsCarousel();
+    } else {
+      reelsCarousel.innerHTML = `
+        <div style="text-align:center;padding:var(--space-8) 0;color:var(--text-muted);width:100%;border:2px dashed var(--glass-border);border-radius:var(--radius-xl)">
+          <div style="font-size:2rem;margin-bottom:var(--space-2)">📱</div>
+          <p style="font-size:var(--text-sm)">No hay reels configurados.</p>
+        </div>`;
+    }
+  }
+
+  // === EXPLORAR VIDEOS ===
+  const videoGrid = document.getElementById('mc-video-grid');
+  _mcExploreVideos = (exploreRes.status === 'fulfilled' && exploreRes.value.success && Array.isArray(exploreRes.value.videos))
+    ? exploreRes.value.videos.filter(v => v.url && getYouTubeId(v.url))
+    : [];
+
+  if (videoGrid) {
+    if (_mcExploreVideos.length > 0) {
+      videoGrid.innerHTML = _mcExploreVideos.map((v, i) => `
+        <article class="mc-video-card" onclick="openVideoModal('explore', ${i})">
+          <div class="mc-aspect-16-9 mc-thumb-wrapper">
+            <img src="${getYtThumbnail(v.url)}" alt="${escapeHtml(v.title || 'Video')}" loading="lazy">
+          </div>
+          <div class="mc-video-card-body">
+            <h3 class="mc-video-card-title">${escapeHtml(v.title || 'Video ' + (i + 1))}</h3>
+          </div>
+        </article>
+      `).join('');
+    } else {
+      videoGrid.innerHTML = `
+        <div style="text-align:center;padding:var(--space-8) 0;color:var(--text-muted);grid-column:1/-1;border:2px dashed var(--glass-border);border-radius:var(--radius-xl)">
+          <div style="font-size:2rem;margin-bottom:var(--space-2)">🎥</div>
+          <p style="font-size:var(--text-sm)">No hay videos configurados.</p>
+        </div>`;
+    }
+  }
 }
 
 /** Handle keyboard events for Media Center modal */
@@ -1187,9 +1524,14 @@ function initReelsCarousel() {
   }, true);
 }
 
-/** Open video modal with full details */
-function openVideoModal(videoId) {
-  const video = DEMO_VIDEOS.find(v => v.id === videoId);
+/** Open video modal with dynamic data */
+function openVideoModal(type, index) {
+  let video = null;
+  if (type === 'reel' && _mcReels[index]) {
+    video = _mcReels[index];
+  } else if (type === 'explore' && _mcExploreVideos[index]) {
+    video = _mcExploreVideos[index];
+  }
   if (!video) return;
 
   const ytId = getYouTubeId(video.url);
@@ -1201,36 +1543,8 @@ function openVideoModal(videoId) {
   // Set player source with autoplay
   player.src = `https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0&modestbranding=1`;
 
-  // Update info
-  document.getElementById('mc-modal-title').textContent = video.title;
-  document.getElementById('mc-modal-price').textContent = video.price;
-  document.getElementById('mc-modal-desc').textContent = video.description || 'Anuncio disponible en AzcapoClasificados.';
-
-  // Set action links
-  const adLink = document.getElementById('mc-modal-ad-link');
-  adLink.href = '#/search';
-  adLink.onclick = function(e) {
-    e.preventDefault();
-    closeVideoModal();
-    navigateTo('/search');
-  };
-
-  const waLink = document.getElementById('mc-modal-whatsapp');
-  if (video.phone) {
-    const waMsg = encodeURIComponent(`Hola, vi tu anuncio "${video.title}" en AzcapoClasificados y me interesa. ¿Podrías darme más información?`);
-    waLink.href = `https://wa.me/52${video.phone}?text=${waMsg}`;
-    waLink.style.display = '';
-  } else {
-    waLink.style.display = 'none';
-  }
-
-  const phoneLink = document.getElementById('mc-modal-phone');
-  if (video.phone) {
-    phoneLink.href = `tel:+52${video.phone}`;
-    phoneLink.style.display = '';
-  } else {
-    phoneLink.style.display = 'none';
-  }
+  // Update title
+  document.getElementById('mc-modal-title').textContent = video.title || 'Video';
 
   // Show modal with animation
   modal.classList.add('active');
@@ -1247,7 +1561,7 @@ function closeVideoModal() {
   document.body.style.overflow = '';
 }
 
-/** Filter video grid by category */
+/** Filter video grid by category — no longer needed with simplified admin */
 function filterMediaVideos(category, btn) {
   // Update active button
   document.querySelectorAll('.mc-filter-btn').forEach(b => b.classList.remove('active'));
@@ -1590,6 +1904,232 @@ async function adminSaveVideos() {
   setTimeout(() => { if (status) status.textContent = ''; }, 3000);
 }
 
+/* ---- Admin: Reels Populares Management ---- */
+let _adminReels = [];
+
+async function loadAdminReels() {
+  const list = document.getElementById('admin-reel-list');
+  if (!list) return;
+
+  try {
+    const data = await apiRequest('/api/settings/reels');
+    _adminReels = (data.success && Array.isArray(data.reels)) ? data.reels : [];
+  } catch(e) {
+    _adminReels = [];
+  }
+
+  adminRenderReelsList();
+}
+
+function adminRenderReelsList() {
+  const list = document.getElementById('admin-reel-list');
+  if (!list) return;
+
+  if (_adminReels.length === 0) {
+    list.innerHTML = `
+      <div style="text-align:center;padding:var(--space-6) 0;color:var(--text-muted);border:2px dashed var(--glass-border);border-radius:var(--radius-xl)">
+        <div style="font-size:2rem;margin-bottom:var(--space-2)">📭</div>
+        <p style="font-size:var(--text-sm)">No hay reels configurados. Agrega uno arriba.</p>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = _adminReels.map((v, i) => {
+    const vid = getYouTubeId(v.url);
+    const thumb = vid ? `https://img.youtube.com/vi/${vid}/mqdefault.jpg` : '';
+    return `
+      <div class="admin-video-row" style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3);background:var(--bg-secondary);border:1px solid var(--glass-border);border-radius:var(--radius-lg);margin-bottom:var(--space-3)">
+        ${thumb ? `<img src="${thumb}" alt="" style="width:120px;height:68px;object-fit:cover;border-radius:var(--radius-md);flex-shrink:0">` : ''}
+        <div style="flex:1;min-width:0">
+          <input type="text" value="${escapeHtml(v.title || '')}" class="input" placeholder="Título del reel"
+            style="font-size:var(--text-sm);margin-bottom:4px"
+            onchange="_adminReels[${i}].title = this.value">
+          <div style="font-size:var(--text-xs);color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(v.url)}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0">
+          <button onclick="adminMoveReel(${i}, -1)" class="btn" style="padding:2px 8px;font-size:0.7rem" ${i === 0 ? 'disabled' : ''}>▲</button>
+          <button onclick="adminMoveReel(${i}, 1)" class="btn" style="padding:2px 8px;font-size:0.7rem" ${i === _adminReels.length - 1 ? 'disabled' : ''}>▼</button>
+        </div>
+        <button onclick="adminRemoveReel(${i})" class="btn" style="padding:4px 10px;color:#e53935;font-size:1.1rem" title="Eliminar">✕</button>
+      </div>`;
+  }).join('');
+}
+
+function adminAddReel() {
+  const urlInput = document.getElementById('admin-new-reel-url');
+  const titleInput = document.getElementById('admin-new-reel-title');
+  if (!urlInput) return;
+
+  const url = urlInput.value.trim();
+  const title = titleInput ? titleInput.value.trim() : '';
+
+  if (!url) { showToast('Pega una URL de YouTube', 'error'); return; }
+  const vid = getYouTubeId(url);
+  if (!vid) { showToast('URL de YouTube no válida. Usa formato: https://youtu.be/... o https://youtube.com/shorts/...', 'error'); return; }
+
+  _adminReels.push({ url, title: title || 'Reel ' + (_adminReels.length + 1) });
+  urlInput.value = '';
+  if (titleInput) titleInput.value = '';
+
+  adminRenderReelsList();
+  showToast('Reel agregado. No olvides guardar los cambios.', 'success');
+}
+
+function adminRemoveReel(index) {
+  _adminReels.splice(index, 1);
+  adminRenderReelsList();
+}
+
+function adminMoveReel(index, direction) {
+  const newIndex = index + direction;
+  if (newIndex < 0 || newIndex >= _adminReels.length) return;
+  [_adminReels[index], _adminReels[newIndex]] = [_adminReels[newIndex], _adminReels[index]];
+  adminRenderReelsList();
+}
+
+async function adminSaveReels() {
+  const btn = document.getElementById('admin-reels-save-btn');
+  const status = document.getElementById('admin-reels-save-status');
+
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Guardando...'; }
+
+  try {
+    const data = await apiRequest('/api/settings/reels', {
+      method: 'POST',
+      body: JSON.stringify({ reels: _adminReels }),
+    });
+
+    if (data.success) {
+      _adminReels = data.reels || _adminReels;
+      adminRenderReelsList();
+      if (status) { status.textContent = '✅ Guardado'; status.style.color = '#4caf50'; }
+      showToast('Reels actualizados correctamente', 'success');
+    } else {
+      showToast(data.error || 'Error al guardar', 'error');
+      if (status) { status.textContent = '❌ Error'; status.style.color = '#e53935'; }
+    }
+  } catch(e) {
+    showToast('Error de conexión al guardar', 'error');
+    if (status) { status.textContent = '❌ Error'; status.style.color = '#e53935'; }
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = '💾 Guardar cambios'; }
+  setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+}
+
+/* ---- Admin: Explorar Videos Management ---- */
+let _adminExploreVideos = [];
+
+async function loadAdminExploreVideos() {
+  const list = document.getElementById('admin-explore-list');
+  if (!list) return;
+
+  try {
+    const data = await apiRequest('/api/settings/explore-videos');
+    _adminExploreVideos = (data.success && Array.isArray(data.videos)) ? data.videos : [];
+  } catch(e) {
+    _adminExploreVideos = [];
+  }
+
+  adminRenderExploreVideosList();
+}
+
+function adminRenderExploreVideosList() {
+  const list = document.getElementById('admin-explore-list');
+  if (!list) return;
+
+  if (_adminExploreVideos.length === 0) {
+    list.innerHTML = `
+      <div style="text-align:center;padding:var(--space-6) 0;color:var(--text-muted);border:2px dashed var(--glass-border);border-radius:var(--radius-xl)">
+        <div style="font-size:2rem;margin-bottom:var(--space-2)">📭</div>
+        <p style="font-size:var(--text-sm)">No hay videos configurados. Agrega uno arriba.</p>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = _adminExploreVideos.map((v, i) => {
+    const vid = getYouTubeId(v.url);
+    const thumb = vid ? `https://img.youtube.com/vi/${vid}/mqdefault.jpg` : '';
+    return `
+      <div class="admin-video-row" style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3);background:var(--bg-secondary);border:1px solid var(--glass-border);border-radius:var(--radius-lg);margin-bottom:var(--space-3)">
+        ${thumb ? `<img src="${thumb}" alt="" style="width:120px;height:68px;object-fit:cover;border-radius:var(--radius-md);flex-shrink:0">` : ''}
+        <div style="flex:1;min-width:0">
+          <input type="text" value="${escapeHtml(v.title || '')}" class="input" placeholder="Título del video"
+            style="font-size:var(--text-sm);margin-bottom:4px"
+            onchange="_adminExploreVideos[${i}].title = this.value">
+          <div style="font-size:var(--text-xs);color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(v.url)}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0">
+          <button onclick="adminMoveExploreVideo(${i}, -1)" class="btn" style="padding:2px 8px;font-size:0.7rem" ${i === 0 ? 'disabled' : ''}>▲</button>
+          <button onclick="adminMoveExploreVideo(${i}, 1)" class="btn" style="padding:2px 8px;font-size:0.7rem" ${i === _adminExploreVideos.length - 1 ? 'disabled' : ''}>▼</button>
+        </div>
+        <button onclick="adminRemoveExploreVideo(${i})" class="btn" style="padding:4px 10px;color:#e53935;font-size:1.1rem" title="Eliminar">✕</button>
+      </div>`;
+  }).join('');
+}
+
+function adminAddExploreVideo() {
+  const urlInput = document.getElementById('admin-new-explore-url');
+  const titleInput = document.getElementById('admin-new-explore-title');
+  if (!urlInput) return;
+
+  const url = urlInput.value.trim();
+  const title = titleInput ? titleInput.value.trim() : '';
+
+  if (!url) { showToast('Pega una URL de YouTube', 'error'); return; }
+  const vid = getYouTubeId(url);
+  if (!vid) { showToast('URL de YouTube no válida. Usa formato: https://youtu.be/... o https://youtube.com/watch?v=...', 'error'); return; }
+
+  _adminExploreVideos.push({ url, title: title || 'Video ' + (_adminExploreVideos.length + 1) });
+  urlInput.value = '';
+  if (titleInput) titleInput.value = '';
+
+  adminRenderExploreVideosList();
+  showToast('Video agregado. No olvides guardar los cambios.', 'success');
+}
+
+function adminRemoveExploreVideo(index) {
+  _adminExploreVideos.splice(index, 1);
+  adminRenderExploreVideosList();
+}
+
+function adminMoveExploreVideo(index, direction) {
+  const newIndex = index + direction;
+  if (newIndex < 0 || newIndex >= _adminExploreVideos.length) return;
+  [_adminExploreVideos[index], _adminExploreVideos[newIndex]] = [_adminExploreVideos[newIndex], _adminExploreVideos[index]];
+  adminRenderExploreVideosList();
+}
+
+async function adminSaveExploreVideos() {
+  const btn = document.getElementById('admin-explore-save-btn');
+  const status = document.getElementById('admin-explore-save-status');
+
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Guardando...'; }
+
+  try {
+    const data = await apiRequest('/api/settings/explore-videos', {
+      method: 'POST',
+      body: JSON.stringify({ videos: _adminExploreVideos }),
+    });
+
+    if (data.success) {
+      _adminExploreVideos = data.videos || _adminExploreVideos;
+      adminRenderExploreVideosList();
+      if (status) { status.textContent = '✅ Guardado'; status.style.color = '#4caf50'; }
+      showToast('Videos actualizados correctamente', 'success');
+    } else {
+      showToast(data.error || 'Error al guardar', 'error');
+      if (status) { status.textContent = '❌ Error'; status.style.color = '#e53935'; }
+    }
+  } catch(e) {
+    showToast('Error de conexión al guardar', 'error');
+    if (status) { status.textContent = '❌ Error'; status.style.color = '#e53935'; }
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = '💾 Guardar cambios'; }
+  setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+}
+
 /* ---- Contact Form (Buzón de Comentarios) ---- */
 function initContactWordCounter() {
   const textarea = document.getElementById('contact-message');
@@ -1716,10 +2256,10 @@ async function adminDeleteMessage(id) {
   }
 }
 
-/* ---- YouTube Video Carousel (Home Page) ---- */
+/* ---- YouTube Video Carousel (Home Page — combines Videos de YouTube + Explorar Videos) ---- */
 let ytCarouselTimer = null;
 
-/** Fetch videos from API, render carousel, then init auto-play */
+/** Fetch videos from both APIs, merge, render carousel, then init auto-play */
 async function loadYtVideos() {
   const container = document.getElementById('yt-carousel-container');
   const side = document.getElementById('video-side');
@@ -1727,20 +2267,31 @@ async function loadYtVideos() {
 
   let videos = [];
   try {
-    const res = await fetch('/api/settings/videos');
-    const data = await res.json();
-    if (data.success && Array.isArray(data.videos)) videos = data.videos;
+    const [ytRes, exRes] = await Promise.allSettled([
+      fetch('/api/settings/videos').then(r => r.json()),
+      fetch('/api/settings/explore-videos').then(r => r.json())
+    ]);
+    if (ytRes.status === 'fulfilled' && ytRes.value.success && Array.isArray(ytRes.value.videos)) {
+      videos = videos.concat(ytRes.value.videos);
+    }
+    if (exRes.status === 'fulfilled' && exRes.value.success && Array.isArray(exRes.value.videos)) {
+      videos = videos.concat(exRes.value.videos);
+    }
   } catch(e) {
-    console.warn('Failed to load videos from API, using fallback:', e);
-    // Fallback to hardcoded array if it exists
-    if (typeof YOUTUBE_VIDEOS !== 'undefined') videos = YOUTUBE_VIDEOS;
+    console.warn('Failed to load videos from API:', e);
   }
 
-  // Filter to valid videos
-  videos = videos.filter(v => v.url && getYouTubeId(v.url));
+  // Filter to valid videos and deduplicate by URL
+  const seen = new Set();
+  videos = videos.filter(v => {
+    if (!v.url || !getYouTubeId(v.url)) return false;
+    const id = getYouTubeId(v.url);
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
 
   if (videos.length === 0) {
-    // Hide video section if no videos
     if (side) side.style.display = 'none';
     return;
   }
@@ -1780,7 +2331,6 @@ async function loadYtVideos() {
       ${dotsHtml}
     </div>`;
 
-  // Init auto-play
   initYtCarousel();
 }
 

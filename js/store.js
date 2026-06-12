@@ -158,6 +158,8 @@ function normalizeAd(ad) {
     createdAt: ad.created_at ? new Date(ad.created_at).getTime() : Date.now(),
     latitude: ad.latitude != null ? Number(ad.latitude) : null,
     longitude: ad.longitude != null ? Number(ad.longitude) : null,
+    boostLevel: ad.boost_level || null,
+    boostExpiresAt: ad.boost_expires_at ? new Date(ad.boost_expires_at).getTime() : null,
     ownerEmail: ad.owner_email || '',
     _dbId: ad.id, // internal DB id
   };
@@ -203,8 +205,8 @@ const Store = {
       ads = ads.filter(a => !a.suspended && a.status !== 'suspended');
     }
     return ads.sort((a, b) => {
-      if (a.type === 'premium' && b.type !== 'premium') return -1;
-      if (b.type === 'premium' && a.type !== 'premium') return 1;
+      if (a.featured && !b.featured) return -1;
+      if (b.featured && !a.featured) return 1;
       return b.createdAt - a.createdAt;
     });
   },
@@ -224,7 +226,7 @@ const Store = {
   },
 
   getFeatured() {
-    return this._ads.filter(a => a.type === 'premium' && !a.suspended).sort((a, b) => b.createdAt - a.createdAt).slice(0, 6);
+    return this._ads.filter(a => a.featured && !a.suspended).sort((a, b) => b.createdAt - a.createdAt).slice(0, 6);
   },
 
   getRecent(limit = 8) {
@@ -381,6 +383,57 @@ const Store = {
     }
 
     return { status: 'active', label: `${days} días restantes`, cssClass: 'status-active' };
+  },
+
+  /** Check if current user qualifies for a store (3+ active ads) */
+  async checkStoreQualification() {
+    try {
+      const myAds = await this.fetchMyAds();
+      const activeCount = myAds.filter(a => !a.suspended && a.status !== 'suspended').length;
+      return { qualifies: activeCount >= 3, activeAds: activeCount };
+    } catch (e) {
+      return { qualifies: false, activeAds: 0 };
+    }
+  },
+
+  /** Get store data for a slug */
+  async fetchStore(slug) {
+    try {
+      const data = await apiRequest('/api/stores/' + slug);
+      return data;
+    } catch (e) {
+      console.warn('fetchStore failed', e);
+      return null;
+    }
+  },
+
+  /** Create a store */
+  async createStore(storeData) {
+    const data = await apiRequest('/api/stores', {
+      method: 'POST',
+      body: JSON.stringify(storeData),
+    });
+    return data;
+  },
+
+  /** Submit a review */
+  async submitReview(reviewData) {
+    const data = await apiRequest('/api/reviews', {
+      method: 'POST',
+      body: JSON.stringify(reviewData),
+    });
+    return data;
+  },
+
+  /** Get reviews for a seller */
+  async fetchReviews(sellerId) {
+    try {
+      const data = await apiRequest('/api/reviews?seller_id=' + sellerId);
+      return data;
+    } catch (e) {
+      console.warn('fetchReviews failed', e);
+      return { reviews: [], avg_rating: 0, total_reviews: 0 };
+    }
   },
 };
 

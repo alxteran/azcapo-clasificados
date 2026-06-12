@@ -244,6 +244,58 @@ function renderAdminPage() {
         </div>
       </div>
 
+      <!-- Reels Populares Section -->
+      <div class="admin-card" style="margin-top:var(--space-6)">
+        <h2 style="font-family:var(--font-display);font-size:var(--text-lg);margin-bottom:var(--space-2)">📱 Reels Populares</h2>
+        <p style="color:var(--text-muted);font-size:var(--text-sm);margin-bottom:var(--space-5)">
+          Los reels aparecen como carrusel horizontal en la sección de Media Center. Usa URLs de YouTube Shorts.
+        </p>
+
+        <!-- Add new reel form -->
+        <div style="display:flex;gap:var(--space-3);margin-bottom:var(--space-5);flex-wrap:wrap">
+          <input type="text" id="admin-new-reel-url" class="input" placeholder="Pega la URL de YouTube aquí…" style="flex:1;min-width:200px">
+          <input type="text" id="admin-new-reel-title" class="input" placeholder="Título (opcional)" style="width:180px">
+          <button class="btn btn-primary" onclick="adminAddReel()" style="white-space:nowrap">+ Agregar reel</button>
+        </div>
+
+        <!-- Reel list -->
+        <div id="admin-reel-list">
+          <div style="text-align:center;padding:var(--space-6) 0;color:var(--text-muted)">Cargando reels…</div>
+        </div>
+
+        <!-- Save button -->
+        <div style="display:flex;justify-content:flex-end;gap:var(--space-3);margin-top:var(--space-5)">
+          <span id="admin-reels-save-status" style="color:var(--text-muted);font-size:var(--text-sm);align-self:center"></span>
+          <button class="btn btn-primary" id="admin-reels-save-btn" onclick="adminSaveReels()">💾 Guardar cambios</button>
+        </div>
+      </div>
+
+      <!-- Explorar Videos Section -->
+      <div class="admin-card" style="margin-top:var(--space-6)">
+        <h2 style="font-family:var(--font-display);font-size:var(--text-lg);margin-bottom:var(--space-2)">🎥 Explorar Videos</h2>
+        <p style="color:var(--text-muted);font-size:var(--text-sm);margin-bottom:var(--space-5)">
+          Los videos aparecen en la sección "Explorar Videos" del Media Center. Usa URLs de YouTube.
+        </p>
+
+        <!-- Add new explore video form -->
+        <div style="display:flex;gap:var(--space-3);margin-bottom:var(--space-5);flex-wrap:wrap">
+          <input type="text" id="admin-new-explore-url" class="input" placeholder="Pega la URL de YouTube aquí…" style="flex:1;min-width:200px">
+          <input type="text" id="admin-new-explore-title" class="input" placeholder="Título (opcional)" style="width:180px">
+          <button class="btn btn-primary" onclick="adminAddExploreVideo()" style="white-space:nowrap">+ Agregar video</button>
+        </div>
+
+        <!-- Explore video list -->
+        <div id="admin-explore-list">
+          <div style="text-align:center;padding:var(--space-6) 0;color:var(--text-muted)">Cargando videos…</div>
+        </div>
+
+        <!-- Save button -->
+        <div style="display:flex;justify-content:flex-end;gap:var(--space-3);margin-top:var(--space-5)">
+          <span id="admin-explore-save-status" style="color:var(--text-muted);font-size:var(--text-sm);align-self:center"></span>
+          <button class="btn btn-primary" id="admin-explore-save-btn" onclick="adminSaveExploreVideos()">💾 Guardar cambios</button>
+        </div>
+      </div>
+
       <!-- Contact Messages Section -->
       <div class="admin-card" style="margin-top:var(--space-6)">
         <h2 style="font-family:var(--font-display);font-size:var(--text-lg);margin-bottom:var(--space-2)">📬 Mensajes del Buzón</h2>
@@ -654,11 +706,6 @@ function renderChatsPage() {
 
 /* ---- Media Center Page ---- */
 function renderMediaCenterPage() {
-  const heroVideo = DEMO_VIDEOS.find(v => v.featured);
-  const reels = DEMO_VIDEOS.filter(v => v.format === 'reel');
-  const gridVideos = DEMO_VIDEOS.filter(v => v.format === 'video' && !v.featured);
-  const heroYtId = heroVideo ? getYouTubeId(heroVideo.url) : '';
-
   return `
     <div class="media-center-page">
       <!-- Breadcrumb -->
@@ -672,93 +719,30 @@ function renderMediaCenterPage() {
         <p class="mc-page-subtitle">Descubre los mejores anuncios en video de Azcapotzalco</p>
       </div>
 
-      <!-- SECCIÓN 1: VIDEO DESTACADO (HERO 16:9) -->
-      ${heroVideo ? `
+      <!-- SECCIÓN 1: VIDEO DESTACADO (HERO 16:9) — loaded dynamically -->
       <section class="mc-section" id="mc-hero-section">
         <h2 class="mc-section-title">Video Destacado</h2>
-        <div class="mc-hero-container">
-          <div class="mc-hero-video">
-            <div class="mc-aspect-16-9">
-              <iframe
-                src="https://www.youtube.com/embed/${heroYtId}?rel=0&modestbranding=1"
-                title="${escapeHtml(heroVideo.title)}"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowfullscreen
-                loading="lazy"
-              ></iframe>
-            </div>
-          </div>
-          <div class="mc-hero-info">
-            <h3>${escapeHtml(heroVideo.title)}</h3>
-            <p>${escapeHtml(heroVideo.description)}</p>
-            <div class="mc-hero-meta">
-              <span class="mc-hero-price">${escapeHtml(heroVideo.price)}</span>
-              <span class="mc-hero-location">📍 ${escapeHtml(heroVideo.location)}</span>
-            </div>
-            <div class="mc-hero-actions">
-              <a href="#" onclick="navigateTo('/search');return false;" class="btn btn-primary">Ver Anuncio Completo</a>
-              <a href="https://wa.me/52${heroVideo.phone}?text=${encodeURIComponent('Hola, vi tu anuncio en AzcapoClasificados')}" target="_blank" rel="noopener" class="mc-btn-whatsapp">💬 WhatsApp</a>
-              <a href="tel:+52${heroVideo.phone}" class="btn btn-secondary" style="text-align:center">📞 Llamar</a>
-            </div>
-          </div>
+        <div id="mc-hero-container">
+          <div style="text-align:center;padding:var(--space-8) 0;color:var(--text-muted);font-size:var(--text-sm)">Cargando video destacado…</div>
         </div>
       </section>
-      ` : ''}
 
-      <!-- SECCIÓN 2: REELS POPULARES (9:16 Carrusel) -->
-      ${reels.length > 0 ? `
+      <!-- SECCIÓN 2: REELS POPULARES (9:16 Carrusel) — loaded dynamically -->
       <section class="mc-section" id="mc-reels-section">
         <div class="mc-section-header">
           <h2 class="mc-section-title">Reels Populares</h2>
           <p class="mc-section-subtitle">Desliza para ver más →</p>
         </div>
         <div class="mc-reels-carousel" id="mc-reels-carousel">
-          ${reels.map(v => `
-            <div class="mc-reel-card" onclick="openVideoModal('${v.id}')">
-              <div class="mc-aspect-9-16">
-                <img src="${getYtThumbnail(v.url)}" alt="${escapeHtml(v.title)}" loading="lazy">
-                <div class="mc-reel-play-overlay">
-                  <div class="mc-play-icon">▶</div>
-                </div>
-              </div>
-              <div class="mc-reel-info-overlay">
-                <div class="mc-reel-price">${escapeHtml(v.price)}</div>
-                <div class="mc-reel-title">${escapeHtml(v.title)}</div>
-                <div class="mc-reel-category">${escapeHtml(v.categoryLabel)}</div>
-              </div>
-            </div>
-          `).join('')}
+          <div style="text-align:center;padding:var(--space-8) 0;color:var(--text-muted);font-size:var(--text-sm);width:100%">Cargando reels…</div>
         </div>
       </section>
-      ` : ''}
 
-      <!-- SECCIÓN 3: EXPLORAR VIDEOS (Grid 16:9) -->
+      <!-- SECCIÓN 3: EXPLORAR VIDEOS (Grid 16:9) — loaded dynamically -->
       <section class="mc-section" id="mc-grid-section">
         <h2 class="mc-section-title">Explorar Videos</h2>
-        <div class="mc-filters-bar" id="mc-filters">
-          <button class="mc-filter-btn active" onclick="filterMediaVideos('all', this)">Todos</button>
-          <button class="mc-filter-btn" onclick="filterMediaVideos('inmuebles', this)">🏠 Inmuebles</button>
-          <button class="mc-filter-btn" onclick="filterMediaVideos('vehiculos', this)">🚗 Vehículos</button>
-          <button class="mc-filter-btn" onclick="filterMediaVideos('servicios', this)">🔧 Servicios</button>
-          <button class="mc-filter-btn" onclick="filterMediaVideos('negocios', this)">🏪 Negocios</button>
-          <button class="mc-filter-btn" onclick="filterMediaVideos('empleo', this)">💼 Empleo</button>
-        </div>
         <div class="mc-video-grid" id="mc-video-grid">
-          ${gridVideos.map(v => `
-            <article class="mc-video-card" data-category="${v.category}" onclick="openVideoModal('${v.id}')">
-              <div class="mc-aspect-16-9 mc-thumb-wrapper">
-                <img src="${getYtThumbnail(v.url)}" alt="${escapeHtml(v.title)}" loading="lazy">
-                ${v.duration ? `<span class="mc-video-duration">▶ ${v.duration}</span>` : ''}
-              </div>
-              <div class="mc-video-card-body">
-                <h3 class="mc-video-card-title">${escapeHtml(v.title)}</h3>
-                <div class="mc-video-card-meta">
-                  <span class="mc-video-card-price">${escapeHtml(v.price)}</span>
-                  <span class="mc-video-card-location">📍 ${escapeHtml(v.location)}</span>
-                </div>
-              </div>
-            </article>
-          `).join('')}
+          <div style="text-align:center;padding:var(--space-8) 0;color:var(--text-muted);font-size:var(--text-sm);grid-column:1/-1">Cargando videos…</div>
         </div>
       </section>
     </div>
@@ -774,14 +758,7 @@ function renderMediaCenterPage() {
             allowfullscreen></iframe>
         </div>
         <div class="mc-modal-info">
-          <h2 id="mc-modal-title" class="mc-modal-title-text">Título del Anuncio</h2>
-          <p id="mc-modal-price" class="mc-modal-price-text">$Precio</p>
-          <p id="mc-modal-desc" class="mc-modal-desc-text">Descripción del anuncio vinculado.</p>
-        </div>
-        <div class="mc-modal-actions">
-          <a id="mc-modal-ad-link" href="#" class="btn btn-primary mc-modal-btn">Ver Anuncio Completo</a>
-          <a id="mc-modal-whatsapp" href="#" class="mc-btn-whatsapp mc-modal-btn" target="_blank" rel="noopener">💬 WhatsApp</a>
-          <a id="mc-modal-phone" href="#" class="btn btn-secondary mc-modal-btn">📞 Llamar</a>
+          <h2 id="mc-modal-title" class="mc-modal-title-text">Título del Video</h2>
         </div>
       </div>
     </div>

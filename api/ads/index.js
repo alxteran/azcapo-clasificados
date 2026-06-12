@@ -18,7 +18,7 @@ async function handleList(req, res) {
     const { q, category, sort, minPrice, maxPrice, limit = 100, page = 1 } = req.query || {};
     const offset = (Number(page) - 1) * Number(limit);
 
-    let query = `SELECT * FROM ads WHERE status = 'active'`;
+    let query = `SELECT id, public_id, owner_id, title, description, category, price, location, type, status, images, contact, featured, boost_level, boost_expires_at, expires_at, renewal_count, max_renewals, latitude, longitude, created_at FROM ads WHERE status = 'active'`;
     const params = [];
     let paramIdx = 1;
 
@@ -43,11 +43,11 @@ async function handleList(req, res) {
       paramIdx++;
     }
 
-    // Sort — no more premium priority
-    if (sort === 'price-asc') query += ` ORDER BY price ASC`;
-    else if (sort === 'price-desc') query += ` ORDER BY price DESC`;
-    else if (sort === 'oldest') query += ` ORDER BY created_at ASC`;
-    else query += ` ORDER BY created_at DESC`;
+    // Sort — featured ads appear first, then by date/price
+    if (sort === 'price-asc') query += ` ORDER BY featured DESC, price ASC`;
+    else if (sort === 'price-desc') query += ` ORDER BY featured DESC, price DESC`;
+    else if (sort === 'oldest') query += ` ORDER BY featured DESC, created_at ASC`;
+    else query += ` ORDER BY featured DESC, created_at DESC`;
 
     params.push(Number(limit));
     query += ` LIMIT $${paramIdx}`;
