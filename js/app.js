@@ -90,7 +90,7 @@ function router() {
     }
     html = renderAdminPage();
     updateActiveNav('');
-    setTimeout(() => { loadAdminVideos(); loadAdminReels(); loadAdminExploreVideos(); loadAdminMessages(); loadAdminMetrics(); }, 100);
+    setTimeout(() => { loadAdminVideos(); loadAdminReels(); loadAdminExploreVideos(); loadAdminMessages(); _autoLoadMetrics(); }, 100);
   } else if (path === '/contact') {
     html = renderContactPage();
     updateActiveNav('contact');
@@ -1822,13 +1822,51 @@ async function loadBlogPreview() {
 
 /* ---- Admin: Video Management ---- */
 /* ---- Admin Metrics Dashboard ---- */
-async function loadAdminMetrics() {
-  const cronSecret = prompt('Ingresa tu Admin Key (CRON_SECRET):');
-  if (!cronSecret) return;
+/** Called on page load — silently loads if key is cached, otherwise shows unlock UI */
+function _autoLoadMetrics() {
+  const cached = sessionStorage.getItem('_azcapo_admin_key');
+  if (cached) {
+    // Key already known — load silently
+    window._adminKey = cached;
+    _renderAdminMetrics(cached);
+  } else {
+    // No key yet — show a friendly unlock state instead of blocking prompt
+    _renderMetricsLocked();
+  }
+}
 
-  // Store for refresh without re-asking
-  window._adminKey = cronSecret;
-  _renderAdminMetrics(cronSecret);
+/** Shows a locked placeholder with a single CTA button — no disruptive prompt */
+function _renderMetricsLocked() {
+  const grid = document.getElementById('admin-kpi-grid');
+  if (!grid) return;
+  // Replace skeletons with a clean locked state
+  const kpiIds = ['kpi-published','kpi-shown','kpi-clicked','kpi-initiated','kpi-conversion','kpi-mrr'];
+  kpiIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<span style="font-size:20px;color:var(--text-muted)">—</span>';
+  });
+  ['admin-funnel-bars','admin-level-breakdown','admin-device-split','admin-live-feed'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<p style="font-size:13px;color:var(--text-muted)">🔒 Ingresa tu Admin Key para ver los datos</p>';
+  });
+  const ts = document.getElementById('metrics-last-updated');
+  if (ts) ts.textContent = 'Sin cargar';
+}
+
+/** Called from the "Actualizar" button — prompts once, caches in sessionStorage */
+async function loadAdminMetrics() {
+  // Use cached key from session (survives page navigations, cleared on tab close)
+  let key = window._adminKey || sessionStorage.getItem('_azcapo_admin_key');
+
+  if (!key) {
+    key = prompt('Ingresa tu Admin Key (CRON_SECRET):');
+    if (!key) return;
+  }
+
+  // Persist in both memory and sessionStorage
+  window._adminKey = key;
+  sessionStorage.setItem('_azcapo_admin_key', key);
+  _renderAdminMetrics(key);
 }
 
 // Called internally after key is cached
@@ -2022,27 +2060,26 @@ async function _renderAdminMetrics(adminKey) {
  *  Reuses the cached admin key if already entered, otherwise prompts once.
  */
 function openInvestorReport() {
-  let key = window._adminKey;
+  let key = window._adminKey || sessionStorage.getItem('_azcapo_admin_key');
   if (!key) {
     key = prompt('Ingresa tu Admin Key (CRON_SECRET) para generar el reporte:');
     if (!key) return;
     window._adminKey = key;
+    sessionStorage.setItem('_azcapo_admin_key', key);
   }
-  // Open the server-rendered report page in a new tab
   const url = '/api/analytics/report?key=' + encodeURIComponent(key);
   const tab = window.open(url, '_blank', 'noopener');
-  if (!tab) {
-    showToast('Activa las ventanas emergentes para este sitio y vuelve a intentarlo.', 'error');
-  }
+  if (!tab) showToast('Activa las ventanas emergentes para este sitio y vuelve a intentarlo.', 'error');
 }
 
 /** Trigger the weekly email report manually — useful to test or send on demand */
 async function sendWeeklyReportNow() {
-  let key = window._adminKey;
+  let key = window._adminKey || sessionStorage.getItem('_azcapo_admin_key');
   if (!key) {
     key = prompt('Ingresa tu Admin Key (CRON_SECRET):');
     if (!key) return;
     window._adminKey = key;
+    sessionStorage.setItem('_azcapo_admin_key', key);
   }
 
   const btn = event?.target;
