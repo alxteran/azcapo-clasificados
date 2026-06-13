@@ -1886,8 +1886,19 @@ async function _renderAdminMetrics(adminKey) {
       fetch('/api/admin/metrics',    { headers: { 'x-admin-key': adminKey } }).then(r => r.json()),
     ]);
 
+    // Check for auth error specifically
     if (!funnelRes.success) {
-      showToast('Admin Key incorrecta', 'error');
+      const msg = funnelRes.message || funnelRes.error || '';
+      const isAuth = msg.toLowerCase().includes('unauthorized') || msg.toLowerCase().includes('auth');
+      if (isAuth) {
+        // Clear cached key so next click prompts again
+        sessionStorage.removeItem('_azcapo_admin_key');
+        window._adminKey = null;
+        showToast('Admin Key incorrecta — intenta de nuevo', 'error');
+      } else {
+        showToast('Error al cargar métricas: ' + (msg || 'revisa la consola'), 'error');
+        console.error('Funnel error:', funnelRes);
+      }
       return;
     }
 
