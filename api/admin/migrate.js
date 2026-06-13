@@ -30,6 +30,11 @@ module.exports = async function handler(req, res) {
     await sql`CREATE INDEX IF NOT EXISTS idx_analytics_created ON analytics_events(created_at)`;
     results.push('✅ analytics_events indexes created');
 
+    // Missing columns that event.js and funnel.js need
+    await sql`ALTER TABLE analytics_events ADD COLUMN IF NOT EXISTS is_mobile BOOLEAN DEFAULT false`;
+    await sql`ALTER TABLE analytics_events ADD COLUMN IF NOT EXISTS referer VARCHAR(255) DEFAULT ''`;
+    results.push('✅ analytics_events columns is_mobile + referer added');
+
     // ── boost columns on ads ──
     await sql`ALTER TABLE ads ADD COLUMN IF NOT EXISTS boost_level VARCHAR(20) DEFAULT NULL`;
     await sql`ALTER TABLE ads ADD COLUMN IF NOT EXISTS boost_expires_at TIMESTAMP DEFAULT NULL`;
